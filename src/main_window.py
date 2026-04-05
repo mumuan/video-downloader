@@ -16,14 +16,18 @@ from src.widgets.file_exists_dialog import FileExistsDialog
 
 
 class DownloadThread(QThread):
-    def __init__(self, downloader: Downloader, url: str, output_filename: str):
+    def __init__(self, downloader: Downloader, url: str, output_filename: str, direct_url: str | None = None):
         super().__init__()
         self.downloader = downloader
         self.url = url
         self.output_filename = output_filename
+        self.direct_url = direct_url
 
     def run(self):
-        self.downloader.download(self.url, self.output_filename)
+        if self.direct_url:
+            self.downloader.download_direct(self.direct_url, self.output_filename)
+        else:
+            self.downloader.download(self.url, self.output_filename)
 
 
 class MainWindow(QMainWindow):
@@ -129,6 +133,7 @@ class MainWindow(QMainWindow):
 
         bv_id = self.current_video_info.bv_id
         url = f"https://www.bilibili.com/video/{bv_id}"
+        direct_url = getattr(self.current_video_info, 'direct_url', None)
 
         self.downloader = Downloader(self.config.output_dir)
         self.downloader.progress_changed.connect(self._on_progress)
@@ -136,7 +141,9 @@ class MainWindow(QMainWindow):
         self.downloader.finished.connect(self._on_finished)
         self.downloader.error.connect(self._on_error)
 
-        self.download_thread = DownloadThread(self.downloader, url, self.current_video_info.output_filename)
+        self.download_thread = DownloadThread(
+            self.downloader, url, self.current_video_info.output_filename, direct_url
+        )
         self.download_thread.start()
 
     @pyqtSlot(float, str, str)
@@ -150,19 +157,23 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str)
     def _on_finished(self, path):
         self.progress_widget.set_finished()
+        source_site = getattr(self.current_video_info, 'source_site', 'bilibili')
         self.history_widget.add_entry(
             self.current_video_info.title,
             self.current_video_info.bv_id,
-            "finished"
+            "finished",
+            source_site=source_site,
         )
         self.download_btn.setEnabled(True)
 
     @pyqtSlot(str)
     def _on_error(self, message):
         self.progress_widget.set_error(message)
+        source_site = getattr(self.current_video_info, 'source_site', 'bilibili') if self.current_video_info else 'bilibili'
         self.history_widget.add_entry(
             self.current_video_info.title if self.current_video_info else "未知",
             self.current_video_info.bv_id if self.current_video_info else "",
-            "error"
+            "error",
+            source_site=source_site,
         )
         self.download_btn.setEnabled(True)

@@ -8,6 +8,8 @@ class VideoInfo:
     duration: int  # in seconds
     thumbnail: str
     output_filename: str
+    source_site: str = "bilibili"  # "bilibili" or "missav"
+    direct_url: str | None = None  # 直链，missav 用，Bilibili 为 None
 
     @property
     def formatted_duration(self) -> str:
