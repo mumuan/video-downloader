@@ -34,8 +34,13 @@ class VideoParser:
             'extract_flat': False,
             'skip_download': True,
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except yt_dlp.utils.DownloadError:
+            raise InvalidVideoURLError("下载失败，请检查链接是否有效")
+        except yt_dlp.utils.ExtractorError:
+            raise InvalidVideoURLError("无法提取视频信息，请检查链接是否有效")
         if not info:
             raise InvalidVideoURLError("无法获取视频信息，请检查链接是否有效")
         title = info.get('title', '未知标题')
