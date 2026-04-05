@@ -22,3 +22,14 @@ def test_formatted_duration_short():
 def test_formatted_duration_zero():
     info = VideoInfo(bv_id="BV1", title="t", duration=0, thumbnail="", output_filename="t.mp4")
     assert info.formatted_duration == "0:00"
+
+
+def test_formatted_duration_float():
+    # yt-dlp returns float duration (e.g. 4869.48)
+    info = VideoInfo(bv_id="BV1", title="t", duration=4869.48, thumbnail="", output_filename="t.mp4")
+    assert info.formatted_duration == "1:21:09"
+
+
+def test_formatted_duration_hours():
+    info = VideoInfo(bv_id="BV1", title="t", duration=3661, thumbnail="", output_filename="t.mp4")
+    assert info.formatted_duration == "1:01:01"
