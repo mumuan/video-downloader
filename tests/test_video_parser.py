@@ -1,18 +1,27 @@
 import pytest
 from src.video_parser import VideoParser, InvalidVideoURLError
 
-def test_normalize_bv_id():
-    p = VideoParser()
-    assert p._normalize_bv_id("BV1xxxx") == "BV1xxxx"
-    assert p._normalize_bv_id("https://www.bilibili.com/video/BV1xxxx") == "BV1xxxx"
-    assert p._normalize_bv_id("https://bilibili.com/video/BV1xxxx") == "BV1xxxx"
 
-def test_normalize_bv_id_invalid():
+def test_detect_site_bilibili_url():
+    p = VideoParser()
+    assert p._detect_site("https://www.bilibili.com/video/BV1xxxx") == "bilibili"
+    assert p._detect_site("https://bilibili.com/video/BV1xxxx") == "bilibili"
+    assert p._detect_site("BV1xxxx") == "bilibili"
+
+
+def test_detect_site_missav():
+    p = VideoParser()
+    assert p._detect_site("https://missav.live/ja/mfcw-008") == "missav"
+    assert p._detect_site("https://missav.live/mfcw-008-uncensored-leak") == "missav"
+
+
+def test_detect_site_unsupported():
     p = VideoParser()
     with pytest.raises(InvalidVideoURLError):
-        p._normalize_bv_id("https://youtube.com/watch?v=xxx")
+        p._detect_site("https://youtube.com/watch?v=xxx")
 
-def test_normalize_bv_id_empty():
+
+def test_detect_site_empty():
     p = VideoParser()
     with pytest.raises(InvalidVideoURLError):
-        p._normalize_bv_id("")
+        p._detect_site("")

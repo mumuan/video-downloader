@@ -34,7 +34,7 @@ class Downloader(QObject):
         self._set_state(DownloadState.DOWNLOADING)
         ydl_opts = {
             'outtmpl': os.path.join(self.output_dir, output_filename),
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'format': 'bestvideo[ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'quiet': False,
             'no_warnings': False,
@@ -43,6 +43,24 @@ class Downloader(QObject):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
+            self._set_state(DownloadState.FINISHED)
+            self.finished.emit(os.path.join(self.output_dir, output_filename))
+        except Exception as e:
+            self._set_state(DownloadState.ERROR)
+            self.error.emit(str(e))
+
+    def download_direct(self, direct_url: str, output_filename: str):
+        """下载直链（missav 等无需解析的视频直链）"""
+        self._set_state(DownloadState.DOWNLOADING)
+        ydl_opts = {
+            'outtmpl': os.path.join(self.output_dir, output_filename),
+            'quiet': False,
+            'no_warnings': False,
+            'progress_hooks': [self._progress_hook],
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([direct_url])
             self._set_state(DownloadState.FINISHED)
             self.finished.emit(os.path.join(self.output_dir, output_filename))
         except Exception as e:

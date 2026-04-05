@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Downloaded files
+*.mp4
+*.flv
+*.part
