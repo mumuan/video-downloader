@@ -1,7 +1,7 @@
 ---
 title: "feat: Package xhub as Windows installer"
 type: feat
-status: active
+status: completed
 date: 2026-04-05
 origin: docs/brainstorms/2026-04-05-xhub-client-packaging-requirements.md
 ---
