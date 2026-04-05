@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import playwright.sync_api
+from playwright_stealth import stealth as stealth_module
 
 
 class VideoParseError(Exception):
@@ -39,40 +40,39 @@ class SessionManager:
     def get_verified_context(
         self, p: playwright.sync_api.Playwright, target_url: str
     ):
-        """返回 (BrowserContext, Browser)。内部决定 headless / headed。"""
+        """返回 (BrowserContext, Browser)。始终使用 stealth headless，自动通过 Cloudflare challenge。"""
+        # 应用 stealth 到 playwright 实例（补丁在 p 的生命周期内永久生效）
+        stealth_module.Stealth().hook_playwright_context(p)
+
+        # 优先尝试使用已有 cookie
         if self.is_cookie_valid():
-            # headless + 加载已有 session
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(storage_state=str(self.state_file))
             page = context.new_page()
             page.goto(target_url)
-            # 短暂等待后检查是否仍在 Cloudflare 页面（cookie 可能已失效）
             page.wait_for_timeout(3000)
             if page.title() not in ("Just a moment...", "请稍候…"):
                 return context, browser
-            # Cookie 失效，关闭 headless 改用 headed 重新验证
+            # challenge 仍在（cookie 实际已失效），关闭并进入重试流程
             browser.close()
 
-        # headed，用户手动通过 Cloudflare 验证
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
-        page = context.new_page()
-        page.goto(target_url)
-        # 等待 Cloudflare checkbox 出现并点击
-        try:
-            page.wait_for_selector(
-                "input[type='checkbox']", timeout=10000
-            )
-            page.click("input[type='checkbox']")
-        except Exception:
-            pass  # 没有 checkbox，继续等待 video
-        # 等待视频元素出现（验证完成）
-        try:
-            page.wait_for_selector("video", timeout=30000)
-        except Exception:
-            raise VideoParseError(
-                "Cloudflare 验证超时，请重试"
-            )
-        # 保存 session
-        context.storage_state(path=str(self.state_file))
-        return context, browser
+        # 无有效 cookie 或 challenge 未通过 → stealth headless 重试
+        for attempt in range(3):
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context()
+            page = context.new_page()
+            page.goto(target_url)
+            try:
+                page.wait_for_selector("video", timeout=20000)
+            except Exception:
+                if attempt == 2:
+                    browser.close()
+                    raise VideoParseError("Cloudflare 验证失败，请稍后重试")
+                page.wait_for_timeout(3000)
+                browser.close()
+                continue
+            # 验证通过，保存 session
+            context.storage_state(path=str(self.state_file))
+            return context, browser
+
+        raise VideoParseError("Cloudflare 验证超时，请稍后重试")
