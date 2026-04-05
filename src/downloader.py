@@ -1,5 +1,7 @@
 import enum
+import json
 import os
+import tempfile
 import yt_dlp
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -21,6 +23,7 @@ class Downloader(QObject):
         super().__init__()
         self.output_dir = output_dir
         self._state = DownloadState.IDLE
+        self._cookie_file: str | None = None
 
     @property
     def state(self) -> DownloadState:
@@ -49,15 +52,62 @@ class Downloader(QObject):
             self._set_state(DownloadState.ERROR)
             self.error.emit(str(e))
 
+    def _get_cloudflare_cookies(self) -> str | None:
+        """获取 missav Cloudflare cookies 文件路径（供 surrit.com CDN 使用）"""
+        try:
+            app_data = os.getenv("APPDATA") or os.path.expanduser("~/.config")
+            state_file = os.path.join(app_data, "missav-downloader", "cookies", "cloudflare_state.json")
+            if not os.path.exists(state_file):
+                return None
+
+            with open(state_file, encoding="utf-8") as f:
+                state = json.load(f)
+
+            # 写入 Netscape 格式 cookie 文件（过滤掉 expires=-1 的无效项）
+            cookie_lines = ["# Netscape HTTP Cookie File"]
+            for c in state.get("cookies", []):
+                domain = c.get("domain", "missav.live")
+                if not domain.startswith("."):
+                    domain = "." + domain
+                expires = c.get("expires", -1)
+                # 跳过无效的 cookie（如 cf_clearance=-1）
+                if expires == -1:
+                    continue
+                cookie_lines.append(
+                    f"{domain}\tTRUE\t/\tFALSE\t{expires}\t{c['name']}\t{c['value']}"
+                )
+
+            if len(cookie_lines) <= 1:
+                return None
+
+            fd, path = tempfile.mkstemp(suffix=".txt")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write("\n".join(cookie_lines))
+            return path
+        except Exception:
+            return None
+
     def download_direct(self, direct_url: str, output_filename: str):
         """下载直链（missav 等无需解析的视频直链）"""
         self._set_state(DownloadState.DOWNLOADING)
+
         ydl_opts = {
             'outtmpl': os.path.join(self.output_dir, output_filename),
             'quiet': False,
             'no_warnings': False,
             'progress_hooks': [self._progress_hook],
         }
+
+        # surrit.com CDN 需要 Cloudflare clearance cookie 和 Referer
+        if "surrit.com" in direct_url:
+            self._cookie_file = self._get_cloudflare_cookies()
+            if self._cookie_file:
+                ydl_opts["cookiefile"] = self._cookie_file
+            ydl_opts["http_headers"] = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                "Referer": "https://missav.live/",
+            }
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([direct_url])
@@ -66,6 +116,13 @@ class Downloader(QObject):
         except Exception as e:
             self._set_state(DownloadState.ERROR)
             self.error.emit(str(e))
+        finally:
+            if self._cookie_file:
+                try:
+                    os.unlink(self._cookie_file)
+                except OSError:
+                    pass
+                self._cookie_file = None
 
     def _progress_hook(self, d):
         if d['status'] == 'downloading':

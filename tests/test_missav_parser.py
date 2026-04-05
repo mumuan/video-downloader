@@ -47,9 +47,13 @@ def test_make_filename_sanitizes_chars():
 def test_parse_success(mock_playwright):
     mock_page = MagicMock()
     mock_page.title.return_value = "测试视频"
+    # page.evaluate 用于 window.source1280 / window.source842 提取
+    # 第一次返回 surrit.com URL（模拟完整 VOD playlist）
+    mock_page.evaluate.side_effect = [
+        "https://surrit.com/test-id/1280x720/video.m3u8",  # window.source1280
+    ]
+    # eval_on_selector 只在 fallback 路径使用（thumbnail）
     mock_page.eval_on_selector.side_effect = [
-        "170038797",                            # video id (media ID)
-        "https://cdn.example.com/video.mp4",  # video src
         "https://cdn.example.com/thumb.jpg",  # og:image
     ]
 
@@ -81,7 +85,7 @@ def test_parse_success(mock_playwright):
     assert isinstance(result, VideoInfo)
     assert result.bv_id == "mfcw-008"
     assert result.source_site == "missav"
-    assert result.direct_url == "https://cdn.example.com/video.mp4"
+    assert result.direct_url == "https://surrit.com/test-id/1280x720/video.m3u8"
     assert result.thumbnail == "https://cdn.example.com/thumb.jpg"
     assert "mfcw-008" in result.output_filename
     assert "_missav_" in result.output_filename
