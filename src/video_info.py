@@ -12,10 +12,11 @@ class VideoInfo:
     @property
     def formatted_duration(self) -> str:
         """Return duration in HH:MM:SS or MM:SS format."""
-        if self.duration == 0:
+        duration = int(self.duration)
+        if duration == 0:
             return "0:00"
 
-        hours, remainder = divmod(self.duration, 3600)
+        hours, remainder = divmod(duration, 3600)
         minutes, seconds = divmod(remainder, 60)
 
         if hours > 0:
