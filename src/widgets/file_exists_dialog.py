@@ -3,9 +3,9 @@ from PyQt6.QtCore import Qt
 
 
 class FileExistsDialog(QDialog):
-    RENAME = "rename"
-    OVERWRITE = "overwrite"
-    SKIP = "skip"
+    RENAME = 1
+    OVERWRITE = 2
+    SKIP = 3
 
     def __init__(self, filename: str, parent=None):
         super().__init__(parent)
