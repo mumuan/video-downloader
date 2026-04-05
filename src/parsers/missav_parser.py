@@ -55,29 +55,44 @@ class MissavParser:
                         "无法获取视频，请检查链接是否有效"
                     )
 
-                # 优先从拦截的请求中获取 m3u8
-                hls_url = captured_m3u8[0] if captured_m3u8 else None
-
-                # 若未捕获到，尝试从 video 元素属性获取 media ID 并构造 URL
-                if not hls_url:
+                # 优先从 page 上下文中提取 window.source1280 / window.source842
+                # 这是 missav 提供的完整 VOD playlist（surrit.com CDN）
+                # 优先用 1280p，若无则降级到 480p
+                video_url = ""
+                for source_expr in [
+                    "window.source1280 || window.source842 || null",
+                    "window.source842 || null",
+                ]:
                     try:
-                        media_id = page.eval_on_selector("video", "v => v.id")
-                        if media_id:
-                            hls_url = f"https://edge-hls.saawsedge.com/hls/{media_id}/master/{media_id}_240p.m3u8"
+                        candidate = page.evaluate(f"() => {source_expr}")
+                        if candidate:
+                            video_url = candidate
+                            break
                     except Exception:
                         pass
 
-                # 提取视频直链（HLS 或 blob）
-                try:
-                    video_url = page.eval_on_selector(
-                        "video", "v => v.src"
-                    )
-                except Exception:
-                    video_url = ""
+                # 若 page 上下文中没有，尝试从拦截的 master m3u8 请求获取
+                if not video_url:
+                    hls_url = captured_m3u8[0] if captured_m3u8 else None
+                    if not hls_url:
+                        # 从 video 元素属性获取 media ID 并构造滚动预览 URL
+                        try:
+                            media_id = page.eval_on_selector("video", "v => v.id")
+                            if media_id:
+                                hls_url = f"https://edge-hls.saawsedge.com/hls/{media_id}/master/{media_id}_240p.m3u8"
+                        except Exception:
+                            pass
+                    if hls_url:
+                        video_url = hls_url
 
-                # 如果拿到的是 blob URL，优先用拦截到的 m3u8 直链
-                if video_url.startswith("blob:") and hls_url:
-                    video_url = hls_url
+                # 若拿到的是 blob URL 且还没有 video_url，尝试拦截的 m3u8
+                if not video_url:
+                    try:
+                        blob_url = page.eval_on_selector("video", "v => v.src")
+                        if blob_url.startswith("blob:") and captured_m3u8:
+                            video_url = captured_m3u8[0]
+                    except Exception:
+                        pass
 
                 # 提取标题
                 title = page.title()
