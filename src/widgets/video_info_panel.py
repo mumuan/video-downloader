@@ -55,9 +55,12 @@ class VideoInfoPanel(QWidget):
             self.thumbnail_label.setText("无封面")
             return
         try:
-            data = urllib.request.urlopen(url, timeout=5).read()
+            with urllib.request.urlopen(url, timeout=5) as response:
+                data = response.read()
             pixmap = QPixmap()
-            pixmap.loadFromData(data)
+            if not pixmap.loadFromData(data):
+                self.thumbnail_label.setText("封面加载失败")
+                return
             scaled = pixmap.scaled(160, 90, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.thumbnail_label.setPixmap(scaled)
         except Exception:

@@ -15,6 +15,7 @@ def test_set_output_dir():
         new_dir = os.path.join(tmpdir, "new_output")
         cfg.output_dir = new_dir
         assert cfg.output_dir == new_dir
+        assert os.path.isdir(new_dir)
 
 def test_config_persists():
     with tempfile.TemporaryDirectory() as tmpdir:

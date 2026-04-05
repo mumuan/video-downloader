@@ -117,10 +117,10 @@ class MainWindow(QMainWindow):
         if os.path.exists(output_path):
             dialog = FileExistsDialog(self.current_video_info.output_filename, self)
             result = dialog.exec()
-            if result == FileExistsDialog.SKIP:
+            if result == FileExistsDialog.Result.SKIP:
                 self.download_btn.setEnabled(True)
                 return
-            if result == FileExistsDialog.RENAME:
+            if result == FileExistsDialog.Result.RENAME:
                 base, ext = os.path.splitext(self.current_video_info.output_filename)
                 counter = 1
                 while os.path.exists(os.path.join(self.config.output_dir, f"{base}_{counter}{ext}")):

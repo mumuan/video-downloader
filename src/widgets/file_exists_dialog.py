@@ -1,11 +1,13 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QHBoxLayout, QPushButton
 from PyQt6.QtCore import Qt
+import enum
 
 
 class FileExistsDialog(QDialog):
-    RENAME = 1
-    OVERWRITE = 2
-    SKIP = 3
+    class Result(enum.IntEnum):
+        RENAME = 1
+        OVERWRITE = 2
+        SKIP = 3
 
     def __init__(self, filename: str, parent=None):
         super().__init__(parent)
@@ -20,9 +22,9 @@ class FileExistsDialog(QDialog):
         self.rename_btn = QPushButton("重命名")
         self.overwrite_btn = QPushButton("覆盖")
         self.skip_btn = QPushButton("跳过")
-        self.rename_btn.clicked.connect(lambda: self.done(self.RENAME))
-        self.overwrite_btn.clicked.connect(lambda: self.done(self.OVERWRITE))
-        self.skip_btn.clicked.connect(lambda: self.done(self.SKIP))
+        self.rename_btn.clicked.connect(lambda: self.done(self.Result.RENAME))
+        self.overwrite_btn.clicked.connect(lambda: self.done(self.Result.OVERWRITE))
+        self.skip_btn.clicked.connect(lambda: self.done(self.Result.SKIP))
         btn_layout.addWidget(self.rename_btn)
         btn_layout.addWidget(self.overwrite_btn)
         btn_layout.addWidget(self.skip_btn)

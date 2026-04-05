@@ -10,9 +10,12 @@ class Config:
 
     def _load(self):
         if os.path.exists(self.config_file):
-            with open(self.config_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self._output_dir = data.get('output_dir', self._default_output_dir())
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self._output_dir = data.get('output_dir', self._default_output_dir())
+            except (json.JSONDecodeError, OSError):
+                self._output_dir = self._default_output_dir()
         else:
             self._output_dir = self._default_output_dir()
 
@@ -32,6 +35,9 @@ class Config:
         self.save()
 
     def save(self):
-        os.makedirs(self.app_data_dir, exist_ok=True)
-        with open(self.config_file, 'w', encoding='utf-8') as f:
-            json.dump({'output_dir': self._output_dir}, f, ensure_ascii=False, indent=2)
+        try:
+            os.makedirs(self.app_data_dir, exist_ok=True)
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump({'output_dir': self._output_dir}, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass

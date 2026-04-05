@@ -7,7 +7,8 @@ from src.video_info import VideoInfo
 def app():
     return QApplication.instance() or QApplication([])
 
-def test_panel_shows_video_info(app):
+def test_panel_shows_video_info():
+    app = QApplication.instance() or QApplication([])
     panel = VideoInfoPanel()
     info = VideoInfo(
         bv_id="BV1xx411xxx",
@@ -21,6 +22,7 @@ def test_panel_shows_video_info(app):
     assert "BV1xx411xxx" in panel.bv_label.text()
     assert "12:34" in panel.duration_label.text()
 
-def test_panel_empty_by_default(app):
+def test_panel_empty_by_default():
+    app = QApplication.instance() or QApplication([])
     panel = VideoInfoPanel()
     assert "暂无视频信息" in panel.title_label.text()

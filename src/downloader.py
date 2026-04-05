@@ -1,4 +1,5 @@
 import enum
+import os
 import yt_dlp
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -32,7 +33,7 @@ class Downloader(QObject):
     def download(self, url: str, output_filename: str):
         self._set_state(DownloadState.DOWNLOADING)
         ydl_opts = {
-            'outtmpl': f'{self.output_dir}/{output_filename}',
+            'outtmpl': os.path.join(self.output_dir, output_filename),
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
             'quiet': False,
@@ -43,7 +44,7 @@ class Downloader(QObject):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             self._set_state(DownloadState.FINISHED)
-            self.finished.emit(f'{self.output_dir}/{output_filename}')
+            self.finished.emit(os.path.join(self.output_dir, output_filename))
         except Exception as e:
             self._set_state(DownloadState.ERROR)
             self.error.emit(str(e))
@@ -58,8 +59,6 @@ class Downloader(QObject):
                 speed_str = self._format_speed(speed)
                 size_str = self._format_size(downloaded, total)
                 self.progress_changed.emit(percent, speed_str, size_str)
-        elif d['status'] == 'finished':
-            pass
 
     def _format_speed(self, speed: float) -> str:
         if speed is None:
