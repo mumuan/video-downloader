@@ -33,7 +33,7 @@ class DownloadThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Bilibili 视频下载器")
+        self.setWindowTitle("xhub")
         self.setMinimumSize(600, 500)
 
         app_data = os.path.join(os.path.expanduser("~"), ".bilibili-downloader")
