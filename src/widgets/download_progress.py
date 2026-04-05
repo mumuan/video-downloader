@@ -41,7 +41,7 @@ class DownloadProgress(QWidget):
 
     def set_finished(self):
         self.status_label.setText("下载完成")
-        self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        self.status_label.setStyleSheet("color: #4CAF50;")
         self.progress_bar.setValue(100)
         self.speed_label.setText("")
         self.size_label.setText("")
