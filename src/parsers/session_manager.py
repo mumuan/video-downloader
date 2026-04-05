@@ -44,28 +44,35 @@ class SessionManager:
             # headless + 加载已有 session
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(storage_state=str(self.state_file))
-            return context, browser
-        else:
-            # headed，用户手动通过 Cloudflare 验证
-            browser = p.chromium.launch(headless=False)
-            context = browser.new_context()
             page = context.new_page()
             page.goto(target_url)
-            # 等待 Cloudflare checkbox 出现并点击
-            try:
-                page.wait_for_selector(
-                    "input[type='checkbox']", timeout=10000
-                )
-                page.click("input[type='checkbox']")
-            except Exception:
-                pass  # 没有 checkbox，继续等待 video
-            # 等待视频元素出现（验证完成）
-            try:
-                page.wait_for_selector("video", timeout=30000)
-            except Exception:
-                raise VideoParseError(
-                    "Cloudflare 验证超时，请重试"
-                )
-            # 保存 session
-            context.storage_state(path=str(self.state_file))
-            return context, browser
+            # 短暂等待后检查是否仍在 Cloudflare 页面（cookie 可能已失效）
+            page.wait_for_timeout(3000)
+            if page.title() not in ("Just a moment...", "请稍候…"):
+                return context, browser
+            # Cookie 失效，关闭 headless 改用 headed 重新验证
+            browser.close()
+
+        # headed，用户手动通过 Cloudflare 验证
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context()
+        page = context.new_page()
+        page.goto(target_url)
+        # 等待 Cloudflare checkbox 出现并点击
+        try:
+            page.wait_for_selector(
+                "input[type='checkbox']", timeout=10000
+            )
+            page.click("input[type='checkbox']")
+        except Exception:
+            pass  # 没有 checkbox，继续等待 video
+        # 等待视频元素出现（验证完成）
+        try:
+            page.wait_for_selector("video", timeout=30000)
+        except Exception:
+            raise VideoParseError(
+                "Cloudflare 验证超时，请重试"
+            )
+        # 保存 session
+        context.storage_state(path=str(self.state_file))
+        return context, browser
