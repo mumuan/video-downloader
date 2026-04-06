@@ -181,6 +181,10 @@ class PlaywrightSessionManager:
 
     def get_browser(self, target_url: str):
         """返回 (context, browser, playwright)"""
+        import asyncio
+        # Avoid asyncio loop conflicts
+        asyncio.set_event_loop(None)
+
         pw_path = _get_system_playwright_browsers_path()
         if pw_path:
             os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(pw_path)
@@ -230,7 +234,8 @@ class PlaywrightSessionManager:
             page = context.new_page()
             page.goto(target_url)
             try:
-                page.wait_for_selector("video", timeout=20000)
+                # Wait for page load instead of video element (videos may be hidden)
+                page.wait_for_load_state("networkidle", timeout=30000)
                 context.storage_state(path=str(self.state_file))
                 return context, browser, p
             except Exception:
