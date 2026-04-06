@@ -15,6 +15,7 @@ from src.widgets.download_progress import DownloadProgress
 from src.widgets.download_history import DownloadHistoryWidget
 from src.widgets.file_exists_dialog import FileExistsDialog
 from src.widgets.actor_search_tab import ActorSearchTab
+from src.i18n import _
 
 
 class DownloadThread(QThread):
@@ -55,22 +56,22 @@ class MainWindow(QMainWindow):
 
         # Tabs
         self._tabs = QTabWidget()
-        self._tabs.addTab(self._create_bilibili_tab(), "Bilibili 下载")
+        self._tabs.addTab(self._create_bilibili_tab(), _("Bilibili Download"))
         self._actor_tab = ActorSearchTab(self.config, self.history_widget)
-        self._tabs.addTab(self._actor_tab, "演员搜索")
+        self._tabs.addTab(self._actor_tab, _("Actor Search"))
         layout.addWidget(self._tabs)
 
         # History (shared, below tabs)
-        history_label = QLabel("下载历史")
+        history_label = QLabel(_("Download History"))
         history_label.setObjectName("history_label")
         layout.addWidget(history_label)
         layout.addWidget(self.history_widget)
 
         # Output dir (shared)
         dir_layout = QHBoxLayout()
-        self.dir_label = QLabel(f"输出目录：{self.config.output_dir}")
+        self.dir_label = QLabel(f"{_("Output Directory")}: {self.config.output_dir}")
         self.dir_label.setObjectName("dir_label")
-        self.change_dir_btn = QPushButton("更改")
+        self.change_dir_btn = QPushButton(_("Change"))
         self.change_dir_btn.setObjectName("change_dir_btn")
         self.change_dir_btn.clicked.connect(self._on_change_dir)
         dir_layout.addWidget(self.dir_label)
@@ -90,8 +91,8 @@ class MainWindow(QMainWindow):
         # URL input row
         input_layout = QHBoxLayout()
         self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("输入 Bilibili 视频链接或 BV号...")
-        self.download_btn = QPushButton("下载")
+        self.url_input.setPlaceholderText(_("Enter Bilibili URL or BV号..."))
+        self.download_btn = QPushButton(_("Download"))
         self.download_btn.clicked.connect(self._on_download_clicked)
         input_layout.addWidget(self.url_input)
         input_layout.addWidget(self.download_btn)
@@ -109,10 +110,10 @@ class MainWindow(QMainWindow):
         return tab
 
     def _on_change_dir(self):
-        folder = QFileDialog.getExistingDirectory(self, "选择输出目录", self.config.output_dir)
+        folder = QFileDialog.getExistingDirectory(self, _("Select output directory"), self.config.output_dir)
         if folder:
             self.config.output_dir = folder
-            self.dir_label.setText(f"输出目录：{folder}")
+            self.dir_label.setText(f"{_("Output Directory")}: {folder}")
 
     @pyqtSlot()
     def _on_download_clicked(self):
@@ -128,10 +129,10 @@ class MainWindow(QMainWindow):
             self.info_panel.set_video_info(self.current_video_info)
             self._start_download()
         except InvalidVideoURLError as e:
-            QMessageBox.warning(self, "解析失败", str(e))
+            QMessageBox.warning(self, _("Parse failed"), str(e))
             self.download_btn.setEnabled(True)
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"解析时发生错误：{str(e)}")
+            QMessageBox.warning(self, _("Error"), f"{_("An error occurred during parsing")}: {str(e)}")
             self.download_btn.setEnabled(True)
 
     def _start_download(self):
@@ -194,7 +195,7 @@ class MainWindow(QMainWindow):
         self.progress_widget.set_error(message)
         source_site = getattr(self.current_video_info, 'source_site', 'bilibili') if self.current_video_info else 'bilibili'
         self.history_widget.add_entry(
-            self.current_video_info.title if self.current_video_info else "未知",
+            self.current_video_info.title if self.current_video_info else _("Unknown"),
             self.current_video_info.bv_id if self.current_video_info else "",
             "error",
             source_site=source_site,
@@ -216,8 +217,8 @@ class MainWindow(QMainWindow):
 
         if bilibili_downloading or actor_downloading:
             reply = QMessageBox.question(
-                self, "确认退出",
-                "下载进行中，确定退出？",
+                self, _("Confirm exit"),
+                _("Download in progress, confirm exit?"),
                 QMessageBox.StandardButton.Yes,
                 QMessageBox.StandardButton.No,
             )
