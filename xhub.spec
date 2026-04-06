@@ -35,6 +35,14 @@ datas += collect_data_files('PyQt6.QtWidgets')
 datas += collect_data_files('yt_dlp')
 datas += collect_data_files('curl_cffi')
 datas += copy_metadata('yt-dlp')
+# i18n translations
+import os
+spec_dir = os.path.dirname(os.path.abspath(SPEC))
+src_dir = os.path.join(spec_dir, 'src')
+trans_src = os.path.join(src_dir, 'translations')
+datas.append((os.path.join(trans_src, 'en.json'), 'translations'))
+datas.append((os.path.join(trans_src, 'zh.json'), 'translations'))
+datas.append((os.path.join(src_dir, 'styles.qss'), '.'))
 # playwright_stealth JS files (loaded dynamically at runtime when needed)
 try:
     datas += collect_data_files('playwright_stealth')
@@ -61,10 +69,10 @@ exe = EXE(
     a.datas,
     [],
     name='xhub',
-    debug=False,
+    debug=True,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    strip=False,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
