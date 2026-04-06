@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from src.video_info import VideoInfo
+from src.i18n import _
 import urllib.request
 
 class VideoInfoPanel(QWidget):
@@ -11,7 +12,7 @@ class VideoInfoPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
-        self.title_label = QLabel("暂无视频信息")
+        self.title_label = QLabel(_("No video info"))
         self.title_label.setObjectName("video_title")
         layout.addWidget(self.title_label)
 
@@ -44,32 +45,32 @@ class VideoInfoPanel(QWidget):
         self._clear()
 
     def _clear(self):
-        self.title_label.setText("暂无视频信息")
+        self.title_label.setText(_("No video info"))
         self.bv_label.setText("")
         self.duration_label.setText("")
-        self.thumbnail_label.setText("无封面")
+        self.thumbnail_label.setText(_("No thumbnail"))
         self.thumbnail_label.setPixmap(QPixmap())
         self.filename_label.setText("")
 
     def set_video_info(self, info: VideoInfo):
         self.title_label.setText(info.title)
-        self.bv_label.setText(f"BV号：{info.bv_id}")
-        self.duration_label.setText(f"时长：{info.formatted_duration}")
-        self.filename_label.setText(f"文件名：{info.output_filename}")
+        self.bv_label.setText(f"{_("BV: ")}{info.bv_id}")
+        self.duration_label.setText(f"{_("Duration: ")}{info.formatted_duration}")
+        self.filename_label.setText(f"{_("Filename: ")}{info.output_filename}")
         self._load_thumbnail(info.thumbnail)
 
     def _load_thumbnail(self, url: str):
         if not url:
-            self.thumbnail_label.setText("无封面")
+            self.thumbnail_label.setText(_("No thumbnail"))
             return
         try:
             with urllib.request.urlopen(url, timeout=5) as response:
                 data = response.read()
             pixmap = QPixmap()
             if not pixmap.loadFromData(data):
-                self.thumbnail_label.setText("封面加载失败")
+                self.thumbnail_label.setText(_("Thumbnail load failed"))
                 return
             scaled = pixmap.scaled(160, 90, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.thumbnail_label.setPixmap(scaled)
         except Exception:
-            self.thumbnail_label.setText("封面加载失败")
+            self.thumbnail_label.setText(_("Thumbnail load failed"))
