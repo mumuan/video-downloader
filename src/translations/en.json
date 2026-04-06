@@ -48,5 +48,20 @@
   "Choose operation:": "Choose operation:",
   "File already exists in target directory:": "File already exists in target directory:",
   "Yes": "Yes",
-  "No": "No"
+  "No": "No",
+  "Input is empty": "Input is empty",
+  "Unsupported site, only Bilibili and missav.ws are supported": "Unsupported site, only Bilibili and missav.ws are supported",
+  "Unsupported site": "Unsupported site",
+  "Unable to extract BV ID from URL": "Unable to extract BV ID from URL",
+  "Please enter a valid BV ID or Bilibili video URL": "Please enter a valid BV ID or Bilibili video URL",
+  "Download failed, please check if the link is valid": "Download failed, please check if the link is valid",
+  "Unable to extract video info, please check if the link is valid": "Unable to extract video info, please check if the link is valid",
+  "Unable to get video info, please check if the link is valid": "Unable to get video info, please check if the link is valid",
+  "Unknown title": "Unknown title",
+  "Unable to extract video ID from URL": "Unable to extract video ID from URL",
+  "Unable to get video, please check if the link is valid": "Unable to get video, please check if the link is valid",
+  "Unable to get video direct link, please check if the link is valid": "Unable to get video direct link, please check if the link is valid",
+  "Please wait...": "Please wait...",
+  "Cloudflare verification failed, please try again later": "Cloudflare verification failed, please try again later",
+  "Cloudflare verification timed out, please try again later": "Cloudflare verification timed out, please try again later"
 }

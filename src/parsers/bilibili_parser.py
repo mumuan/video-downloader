@@ -2,6 +2,7 @@ import re
 
 import yt_dlp
 
+from src.i18n import _
 from src.video_info import VideoInfo
 
 
@@ -9,17 +10,17 @@ class BilibiliParser:
     def _normalize_bv_id(self, raw: str) -> str:
         raw = raw.strip()
         if not raw:
-            raise ValueError("输入为空")
+            raise ValueError(_("Input is empty"))
         if raw.startswith("https://") or raw.startswith("http://"):
             if "bilibili.com" not in raw:
-                raise ValueError("不支持的网站，仅支持 Bilibili")
+                raise ValueError(_("Unsupported site, only Bilibili and missav.ws are supported"))
             match = re.search(r'BV[\w]+', raw)
             if not match:
-                raise ValueError("无法从URL中提取BV号")
+                raise ValueError(_("Unable to extract BV ID from URL"))
             return match.group(0)
         if raw.startswith("BV"):
             return raw
-        raise ValueError("请输入有效的 BV号 或 Bilibili 视频链接")
+        raise ValueError(_("Please enter a valid BV ID or Bilibili video URL"))
 
     def parse(self, raw_input: str) -> VideoInfo:
         bv_id = self._normalize_bv_id(raw_input)
@@ -34,12 +35,12 @@ class BilibiliParser:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except yt_dlp.utils.DownloadError:
-            raise ValueError("下载失败，请检查链接是否有效")
+            raise ValueError(_("Download failed, please check if the link is valid"))
         except yt_dlp.utils.ExtractorError:
-            raise ValueError("无法提取视频信息，请检查链接是否有效")
+            raise ValueError(_("Unable to extract video info, please check if the link is valid"))
         if not info:
-            raise ValueError("无法获取视频信息，请检查链接是否有效")
-        title = info.get('title', '未知标题')
+            raise ValueError(_("Unable to get video info, please check if the link is valid"))
+        title = info.get('title', _("Unknown title"))
         duration = info.get('duration', 0)
         thumbnail = info.get('thumbnail', '')
         safe_title = "".join(c for c in title if c not in '<>:"/\\|?*')

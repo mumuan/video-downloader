@@ -2,6 +2,7 @@ import re
 import importlib
 from urllib.parse import urlparse, quote
 
+from src.i18n import _
 from src.parsers.session_manager import (
     CurlSessionManager,
     PlaywrightSessionManager,
@@ -21,7 +22,7 @@ class MissavParser:
         path = parsed.path.strip("/")
         segments = [s for s in path.split("/") if s]
         if not segments:
-            raise VideoParseError("无法从 URL 中提取视频 ID")
+            raise VideoParseError(_("Unable to extract video ID from URL"))
         return segments[-1]
 
     def _make_filename(self, title: str, video_id: str) -> str:
@@ -58,7 +59,7 @@ class MissavParser:
 
     def _extract_title(self, html: str) -> str:
         match = re.search(r'<title>([^<]+)</title>', html)
-        return match.group(1).strip() if match else "未知标题"
+        return match.group(1).strip() if match else _("Unknown title")
 
     def _extract_thumbnail(self, html: str) -> str:
         match = re.search(
@@ -95,10 +96,10 @@ class MissavParser:
 
         return VideoInfo(
             bv_id=video_id,
-            title=title or "未知标题",
+            title=title or _("Unknown title"),
             duration=0,
             thumbnail=thumbnail or "",
-            output_filename=self._make_filename(title or "未知标题", video_id),
+            output_filename=self._make_filename(title or _("Unknown title"), video_id),
             source_site="missav",
             direct_url=video_url,
         )
@@ -130,7 +131,7 @@ class MissavParser:
             try:
                 page.wait_for_selector("video", timeout=30000)
             except Exception:
-                raise VideoParseError("无法获取视频，请检查链接是否有效")
+                raise VideoParseError(_("Unable to get video, please check if the link is valid"))
 
             video_url = ""
             for source_expr in [
@@ -179,14 +180,14 @@ class MissavParser:
             p.stop()
 
         if not video_url:
-            raise VideoParseError("无法获取视频直链，请检查链接是否有效")
+            raise VideoParseError(_("Unable to get video direct link, please check if the link is valid"))
 
         return VideoInfo(
             bv_id=video_id,
-            title=title or "未知标题",
+            title=title or _("Unknown title"),
             duration=0,
             thumbnail=thumbnail or "",
-            output_filename=self._make_filename(title or "未知标题", video_id),
+            output_filename=self._make_filename(title or _("Unknown title"), video_id),
             source_site="missav",
             direct_url=video_url,
         )
@@ -202,12 +203,12 @@ class MissavParser:
 
     def search_parse(self, actor_name: str, page: int = 1) -> tuple[list[SearchResult], int]:
         """
-        Search for videos by actor name on missav.live.
+        Search for videos by actor name on missav.ws.
 
         Returns (list_of_search_results, total_pages).
         Raises VideoParseError on total failure.
         """
-        search_url = f"https://missav.live/search/{quote(actor_name)}?page={page}"
+        search_url = f"https://missav.ws/search/{quote(actor_name)}?page={page}"
 
         # Try curl first
         result = self._search_with_curl(search_url)
@@ -242,7 +243,7 @@ class MissavParser:
             )
 
         # Use base URL for Cloudflare bypass, then navigate to search
-        context, browser, p = self._playwright_session.get_browser("https://missav.live")
+        context, browser, p = self._playwright_session.get_browser("https://missav.ws")
 
         try:
             page = context.new_page()
@@ -415,7 +416,7 @@ class MissavParser:
                         pass
 
                 if video_id and title:
-                    full_url = detail_url if detail_url.startswith("http") else f"https://missav.live{detail_url}"
+                    full_url = detail_url if detail_url.startswith("http") else f"https://missav.ws{detail_url}"
                     results.append(SearchResult(
                         video_id=video_id,
                         title=title,

@@ -9,18 +9,18 @@ from src.search_result import SearchResult
 
 def test_extract_video_id():
     p = MissavParser()
-    assert p._extract_video_id("https://missav.live/ja/mfcw-008") == "mfcw-008"
+    assert p._extract_video_id("https://missav.ws/ja/mfcw-008") == "mfcw-008"
     assert (
-        p._extract_video_id("https://missav.live/ja/mfcw-008-uncensored-leak")
+        p._extract_video_id("https://missav.ws/ja/mfcw-008-uncensored-leak")
         == "mfcw-008-uncensored-leak"
     )
-    assert p._extract_video_id("https://missav.live/mfcw-008") == "mfcw-008"
+    assert p._extract_video_id("https://missav.ws/mfcw-008") == "mfcw-008"
 
 
 def test_extract_video_id_invalid():
     p = MissavParser()
     with pytest.raises(VideoParseError):
-        p._extract_video_id("https://missav.live/")
+        p._extract_video_id("https://missav.ws/")
 
 
 def test_make_filename():
@@ -68,7 +68,7 @@ def test_parse_success():
     parser._playwright_session = mock_playwright_session
 
     with patch.object(parser, '_parse_with_curl', return_value=None):
-        result = parser.parse("https://missav.live/ja/mfcw-008")
+        result = parser.parse("https://missav.ws/ja/mfcw-008")
 
     assert isinstance(result, VideoInfo)
     assert result.bv_id == "mfcw-008"
@@ -98,8 +98,8 @@ def test_parse_no_video_raises_error():
     parser._playwright_session = mock_playwright_session
 
     with patch.object(parser, '_parse_with_curl', return_value=None):
-        with pytest.raises(VideoParseError, match="无法获取视频"):
-            parser.parse("https://missav.live/ja/mfcw-008")
+        with pytest.raises(VideoParseError, match="Unable to get video"):
+            parser.parse("https://missav.ws/ja/mfcw-008")
 
 
 class TestSearchParse:
@@ -135,7 +135,7 @@ class TestSearchParse:
         ):
             parser = MissavParser()
             results, total_pages = parser._search_with_curl(
-                "https://missav.live/search/test?page=1"
+                "https://missav.ws/search/test?page=1"
             )
 
         assert results is not None
@@ -144,7 +144,7 @@ class TestSearchParse:
         assert video is not None
         assert video.thumbnail == "https://cdn.example.com/thumb1.jpg"
         assert video.duration == 630  # 10*60 + 30
-        assert video.detail_url == "https://missav.live/mfcw-008"
+        assert video.detail_url == "https://missav.ws/mfcw-008"
 
     def test_search_with_curl_returns_none_on_cloudflare(self):
         """Returns None when curl gets a Cloudflare challenge page."""
@@ -160,7 +160,7 @@ class TestSearchParse:
             return_value=mock_session_instance,
         ):
             parser = MissavParser()
-            result = parser._search_with_curl("https://missav.live/search/test")
+            result = parser._search_with_curl("https://missav.ws/search/test")
 
         assert result is None
 
@@ -171,7 +171,7 @@ class TestSearchParse:
             return_value=None,
         ):
             parser = MissavParser()
-            result = parser._search_with_curl("https://missav.live/search/test")
+            result = parser._search_with_curl("https://missav.ws/search/test")
 
         assert result is None
 
@@ -189,7 +189,7 @@ class TestSearchParse:
             return_value=mock_session_instance,
         ):
             parser = MissavParser()
-            result = parser._search_with_curl("https://missav.live/search/test")
+            result = parser._search_with_curl("https://missav.ws/search/test")
 
         assert result is None
 

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from curl_cffi import requests as curl_requests
 
+from src.i18n import _
+
 
 class VideoParseError(Exception):
     """解析视频信息时出错"""
@@ -209,9 +211,9 @@ class PlaywrightSessionManager:
             except Exception:
                 if attempt == 2:
                     browser.close()
-                    raise VideoParseError("Cloudflare 验证失败，请稍后重试")
+                    raise VideoParseError(_("Cloudflare verification failed, please try again later"))
                 page.wait_for_timeout(3000)
                 browser.close()
                 continue
 
-        raise VideoParseError("Cloudflare 验证超时，请稍后重试")
+        raise VideoParseError(_("Cloudflare verification timed out, please try again later"))

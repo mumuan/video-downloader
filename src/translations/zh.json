@@ -48,5 +48,20 @@
   "Choose operation:": "请选择操作方式：",
   "File already exists in target directory:": "即将下载的文件已存在于目标目录：",
   "Yes": "是",
-  "No": "否"
+  "No": "否",
+  "Input is empty": "输入为空",
+  "Unsupported site, only Bilibili and missav.ws are supported": "不支持的网站，仅支持 Bilibili 和 missav.ws",
+  "Unsupported site": "不支持的网站",
+  "Unable to extract BV ID from URL": "无法从URL中提取BV号",
+  "Please enter a valid BV ID or Bilibili video URL": "请输入有效的 BV号 或 Bilibili 视频链接",
+  "Download failed, please check if the link is valid": "下载失败，请检查链接是否有效",
+  "Unable to extract video info, please check if the link is valid": "无法提取视频信息，请检查链接是否有效",
+  "Unable to get video info, please check if the link is valid": "无法获取视频信息，请检查链接是否有效",
+  "Unknown title": "未知标题",
+  "Unable to extract video ID from URL": "无法从 URL 中提取视频 ID",
+  "Unable to get video, please check if the link is valid": "无法获取视频，请检查链接是否有效",
+  "Unable to get video direct link, please check if the link is valid": "无法获取视频直链，请检查链接是否有效",
+  "Please wait...": "请稍候...",
+  "Cloudflare verification failed, please try again later": "Cloudflare 验证失败，请稍后重试",
+  "Cloudflare verification timed out, please try again later": "Cloudflare 验证超时，请稍后重试"
 }
