@@ -1,41 +1,37 @@
 # xhub Video Downloader
 
-> A sleek desktop application for downloading videos from Bilibili, MissAV, and more.
+> A sleek desktop application for downloading videos from Bilibili, YouTube, and more.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
 - **One-Click Download** — Paste a URL and get video info instantly
-- **Multi-Platform Support** — Bilibili (BV号或链接), MissAV, and growing
-- **Real-Time Progress** — Live download progress with speed indicators
-- **Smart File Handling** — Ask to skip, overwrite, or rename when files exist
-- **Download History** — Track all your downloads with resume capability
+- **Multi-Platform Support** — Bilibili (BV号或链接), YouTube, and growing
+- **Real-Time Progress** — Live download progress with speed and size indicators
+- **Pause & Resume** — Pause downloads at any time and resume from where you left off
+- **Smart File Handling** — Skip, overwrite, or rename when files already exist
 - **Actor Search** — Search and batch download by actor on supported sites
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Run the app
 python main.py
 ```
 
-## Screenshots
+## Supported Sites
 
-```
-┌─────────────────────────────────────────────────────┐
-│  xhub Video Downloader                              │
-├─────────────────────────────────────────────────────┤
-│  [Paste URL here...]              [Parse]          │
-│                                                     │
-│  Video Title: ...                                   │
-│  Duration: 05:32 | Size: 256 MB                     │
-│  [▶ Download]                                       │
-└─────────────────────────────────────────────────────┘
-```
+| Site | URL Format | Status |
+|------|------------|--------|
+| Bilibili | `BV...` or full URL | Stable |
+| YouTube | `watch?v=...` or full URL | Stable |
+
+## Tech Stack
+
+- **Python 3.10+**
+- **PyQt6** — Modern Qt bindings for Python
+- **yt-dlp** — Video extraction backend
 
 ## Project Structure
 
@@ -48,29 +44,19 @@ src/
 ├── config.py               # Configuration
 ├── parsers/
 │   ├── bilibili_parser.py  # Bilibili parser
+│   ├── youtube_parser.py   # YouTube parser
 │   ├── missav_parser.py    # MissAV parser
 │   └── session_manager.py  # Session management
 ├── widgets/
 │   ├── video_info_panel.py
-│   ├── download_progress.py
-│   ├── download_history.py
-│   └── file_exists_dialog.py
+│   ├── download_list_widget.py
+│   ├── file_exists_dialog.py
+│   └── actor_search_tab.py
+└── i18n.py                 # Internationalization
+
 tests/
 └── *_test.py              # Unit tests
 ```
-
-## Supported Sites
-
-| Site | URL Format | Status |
-|------|------------|--------|
-| Bilibili | `BV...` or full URL | Stable |
-| MissAV | Direct link | Stable |
-
-## Tech Stack
-
-- **Python 3.10+**
-- **PyQt6** — Modern Qt bindings for Python
-- **yt-dlp** — Video extraction backend
 
 ## License
 
@@ -80,16 +66,16 @@ MIT License — free to use, modify, and distribute.
 
 ## 中文说明
 
-xhub 是一款简洁高效的桌面视频下载工具，支持 Bilibili 和 MissAV 等平台。
+xhub 是一款简洁高效的桌面视频下载工具，支持 Bilibili 和 YouTube 等平台。
 
 ### 功能特点
 
 - 粘贴 URL 自动解析视频信息
-- 支持 Bilibili（BV号或链接）
+- 支持 Bilibili（BV号或链接）和 YouTube
 - 下载进度实时显示
+- 暂停和继续下载
 - 文件已存在时询问处理方式
-- 下载历史记录
-- 演员搜索与批量下载（MissAV）
+- 演员搜索与批量下载
 
 ### 安装运行
 
@@ -107,10 +93,12 @@ src/
 ├── video_info.py       # 视频信息模型
 ├── downloader.py       # 下载逻辑
 ├── config.py           # 配置
-├── parsers/            # 解析器
+├── parsers/           # 解析器
 │   ├── bilibili_parser.py
+│   ├── youtube_parser.py
 │   ├── missav_parser.py
 │   └── session_manager.py
-├── widgets/            # UI 组件
-└── tests/              # 单元测试
+└── widgets/            # UI 组件
+
+tests/                 # 单元测试
 ```
