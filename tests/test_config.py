@@ -25,3 +25,30 @@ def test_config_persists():
         cfg1.save()
         cfg2 = Config(tmpdir)
         assert cfg2.output_dir == new_dir
+
+def test_default_concurrent_downloads():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = Config(tmpdir)
+        assert cfg.concurrent_downloads == 2
+
+def test_set_concurrent_downloads():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = Config(tmpdir)
+        cfg.concurrent_downloads = 3
+        assert cfg.concurrent_downloads == 3
+
+def test_concurrent_downloads_clamped():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = Config(tmpdir)
+        cfg.concurrent_downloads = 10
+        assert cfg.concurrent_downloads == 5
+        cfg.concurrent_downloads = 0
+        assert cfg.concurrent_downloads == 1
+
+def test_concurrent_downloads_persists():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg1 = Config(tmpdir)
+        cfg1.concurrent_downloads = 4
+        cfg1.save()
+        cfg2 = Config(tmpdir)
+        assert cfg2.concurrent_downloads == 4

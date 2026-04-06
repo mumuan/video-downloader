@@ -1,0 +1,143 @@
+{
+  "reviewer": "feasibility-reviewer",
+  "findings": [
+    {
+      "title": "Config.save() 只序列化 output_dir，新增字段不会持久化",
+      "severity": "P0",
+      "section": "Unit 1: SearchResult dataclass + Config concurrent_downloads",
+      "why_it_matters": "计划在 Unit 1 扩展 Config，新增 concurrent_downloads 字段持久化到 config.json。但现有 Config.save()（config.py:37-41）只写入 {'output_dir': self._output_dir}。即使设置了 concurrent_downloads 属性，save() 也不会序列化它，重启后丢失。实现者若直接按计划实现会发现设置不生效。",
+      "autofix_class": "auto",
+      "finding_type": "omission",
+      "suggested_fix": "修改 Config.save() 为 json.dump({'output_dir': self._output_dir, 'concurrent_downloads': getattr(self, '_concurrent_downloads', 2)}, f, ...)，并同步修改 _load() 的反序列化逻辑。",
+      "confidence": 0.9,
+      "evidence": [
+        "config.py:37-41: json.dump({'output_dir': self._output_dir}, f, ...)",
+        "plan Unit 1: Config 新增 concurrent_downloads: int = 2，序列化到 config.json"
+      ]
+    },
+    {
+      "title": "DownloadHistoryWidget.add_entry() 没有 video_id 参数",
+      "severity": "P0",
+      "section": "Unit 5: MainWindow QTabWidget 重构 + DownloadHistoryWidget.add_entry 扩展",
+      "why_it_matters": "计划说 R16 要求'下载历史写入 DownloadHistoryWidget'，且'add_entry() 增加可选 video_id 参数，向后兼容'。但实际 download_history.py:15 的签名是 add_entry(title, bv_id, state, size='', source_site='bilibili')，没有 video_id 参数。missav 批量下载时 bv_id 字段语义不正确（bv_id 是 Bilibili 的 ID），需要一个独立的 video_id 字段来标识 missav 视频。实现者如果只按计划'扩展'会发现接口设计不匹配。",
+      "autofix_class": "present",
+      "suggested_fix": "在 DownloadHistoryWidget.add_entry() 签名中增加 video_id: str = None 参数，当 source_site='missav' 时用 video_id 替代 bv_id 显示。向后兼容：video_id 为 None 时回退到 bv_id。",
+      "confidence": 0.9,
+      "evidence": [
+        "download_history.py:15: def add_entry(self, title: str, bv_id: str, state: str, size: str = '', source_site: str = 'bilibili')",
+        "plan Unit 5: DownloadHistoryWidget.add_entry() 增加可选 video_id 参数（向后兼容，传 None 则用 bv_id）"
+      ]
+    },
+    {
+      "title": "SearchResult.detail_url 构造使用硬编码假设",
+      "severity": "P1",
+      "section": "Unit 1: SearchResult dataclass",
+      "why_it_matters": "计划定义 SearchResult.detail_url 字段说'从搜索页 URL 构造'，但搜索结果中视频链接的格式和详情页 URL 的构造方式（是 /abc 还是 /video/abc）属于'Deferred: HTML selector 具体结构'的 deferred 问题。detail_url 若构造错误则两阶段提取直链时所有视频都无法解析。整个批量下载功能依赖于这个字段的正确性。",
+      "autofix_class": "auto",
+      "finding_type": "omission",
+      "suggested_fix": "在 Unit 2 实现时验证搜索结果页中每个视频链接的实际 href 值，明确 detail_url 的构造规则（路径格式、是否需要 /video/ 前缀等）。",
+      "confidence": 0.75,
+      "evidence": [
+        "plan Unit 1: detail_url（从搜索页 URL 构造）",
+        "plan Deferred to Implementation: HTML selector 结构、视频详情页 URL 格式"
+      ]
+    },
+    {
+      "title": "提取阶段失败（ExtractPhase）未定义错误处理",
+      "severity": "P1",
+      "section": "High-Level Technical Design: ExtractPhase",
+      "why_it_matters": "两阶段处理的第一步是批量提取直链（访问详情页 MissavParser.parse(detail_url)）。如果某个视频的详情页访问失败（如 Cloudflare 拦截、链接失效），计划没有定义是否：跳过该视频继续提取其他视频？中止整个批次？计划只说了'启动 DownloadQueue 下载'，但若提取阶段有视频失败，这些视频的 VideoInfo 没有 direct_url，无法下载，而 DownloadQueue 也不会报 item_failed。",
+      "autofix_class": "auto",
+      "finding_type": "omission",
+      "suggested_fix": "在 ExtractPhase 阶段定义：单个视频提取失败时记录到 failed_ids 并继续；所有提取完成后若 failed_ids 非空，弹窗告知用户哪些视频无法处理，不传入 DownloadQueue。",
+      "confidence": 0.8,
+      "evidence": [
+        "plan High-Level Technical Design: ExtractPhase: for each SearchResult: MissavParser.parse(detail_url) → VideoInfo with direct_url",
+        "plan R10: 下载失败自动跳下一条（但这只指 DownloadQueue 阶段，不是提取阶段）"
+      ]
+    },
+    {
+      "title": "cookie 竞争风险在并发场景下未解决",
+      "severity": "P1",
+      "section": "Risks & Dependencies: 并发下载 cookie 竞争",
+      "why_it_matters": "计划 mitigation 说'每个 Worker 独立创建 cookie file（tempfile.mkstemp）'，但 downloader.py 的 _get_cloudflare_cookies() 读的是同一个固定路径的 cookie 文件（config.py 的 app_data_dir，不是 tempfile）。DownloaderWorker(QThread) 调用 download_direct() 时，_get_cloudflare_cookies() 读同一个 state 文件，多线程并发读同一个文件本身没问题，但若 cloudflare_state.json 在下载过程中被刷新（如另一个 Playwright session 更新了 cookie），正在下载的 Worker 会拿到过期 cf_clearance 导致被拦截。没有机制让 Worker 持有独立的 cookie snapshot。",
+      "autofix_class": "present",
+      "finding_type": "omission",
+      "suggested_fix": "在 DownloadQueue.start() 时提前生成一个 cookie file（使用 tempfile.mkstemp），所有 Worker 共用这个文件而非动态读取 cloudflare_state.json。或者在 ExtractPhase 完成后立即快照 cookie 状态供下载阶段使用。",
+      "confidence": 0.7,
+      "evidence": [
+        "downloader.py:55-88: _get_cloudflare_cookies() 读 cloudflare_state.json",
+        "plan Risks: 每个 Worker 独立创建 cookie file（tempfile.mkstemp），主进程管理生命周期"
+      ]
+    },
+    {
+      "title": "_checked_ids 跨页持久化无实现方案",
+      "severity": "P2",
+      "section": "Unit 4: ActorSearchTab UI 组件",
+      "why_it_matters": "R7a 要求'跨页选择全局持久化'，计划用 ActorSearchTab._checked_ids: Set[str] 管理。但没有说明如何持久化——用户翻到第 5 页选了视频，关闭应用，第 2 天重新打开，选中状态是否保留？若不持久化，用户必须一次选完所有页才能批量下载（若视频量大则体验差）。",
+      "autofix_class": "present",
+      "finding_type": "omission",
+      "suggested_fix": "在 Config 或单独 JSON 文件中持久化 checked_ids；或明确此为 scope boundary（关闭 tab 清空状态），不在计划中实现但需在 UI 上提示用户。",
+      "confidence": 0.65,
+      "evidence": [
+        "plan R7+R7a: 当前页已选中数量 + 跨页选择全局持久化",
+        "plan Unit 4: _checked_ids: Set[str] — 全局已选 video_id 集合（跨页持久化，R7a）"
+      ]
+    },
+    {
+      "title": "VideoInfo.duration 在 missav 实现中始终为 0",
+      "severity": "P2",
+      "section": "Unit 1: SearchResult + plan 标注",
+      "why_it_matters": "计划 Unit 1 的 test scenarios 提到'Edge case: duration 为 float（来自 yt-dlp）时 cast to int'，验证 SearchResult 可以接受 duration=120。但 missav_parser.py:98 和 :186 在构造 VideoInfo 时 hardcode duration=0（无实际值）。SearchResult 包含 duration 字段，若从搜索页能提取到时长（搜索列表通常显示时长），duration 才有意义；若搜索页不提供则 SearchResult.duration 永远为 0，测试场景会失败。",
+      "autofix_class": "auto",
+      "finding_type": "omission",
+      "suggested_fix": "在 Unit 2 实现 search_parse() 时，确认搜索页 HTML 是否包含时长信息。如果不包含，从 SearchResult dataclass 中移除 duration 字段或标记为可选。",
+      "confidence": 0.7,
+      "evidence": [
+        "missav_parser.py:98: duration=0",
+        "missav_parser.py:186: duration=0",
+        "plan Unit 1 Test scenarios: Edge case: duration 为 float（来自 yt-dlp）时 cast to int"
+      ]
+    },
+    {
+      "title": "DownloadQueue.start() 时机与 ExtractPhase 耦合未定义",
+      "severity": "P2",
+      "section": "High-Level Technical Design",
+      "why_it_matters": "计划描述 ExtractPhase 在 _on_download_selected_clicked() 中顺序执行：先 for 循环提取所有视频直链，再 DownloadQueue.start(video_infos)。若选中了 50 个视频，提取阶段需要串行访问 50 个详情页，可能耗时 5-10 分钟，期间 UI 无响应（即使 UI 在主线程）。虽然有 _set_state('extracting') 但没有 QThread/async 处理，ActorSearchTab 会在提取期间挂起。",
+      "autofix_class": "auto",
+      "finding_type": "omission",
+      "suggested_fix": "将 ExtractPhase 改为在后台 QThread 执行，完成后 emit 信号通知 UI 启用'下载选中'按钮。或在提取阶段使用 ThreadPoolExecutor 并发请求（5-10 个）以加快速度。",
+      "confidence": 0.7,
+      "evidence": [
+        "plan High-Level Technical Design: ExtractPhase: for each SearchResult: MissavParser.parse(detail_url) → VideoInfo with direct_url",
+        "plan Unit 4: _download_state: Literal['idle', 'extracting', 'downloading', 'finished']"
+      ]
+    },
+    {
+      "title": "分页 URL 格式 deferred 导致 search_parse() 接口不确定",
+      "severity": "P2",
+      "section": "Unit 2: MissavParser.search_parse() 扩展",
+      "why_it_matters": "计划 Unit 2 说 URL 格式可能是 https://missav.live/search/{actor_name}?page={page} 或 /{page}，属于'Deferred to Implementation'。但返回类型 Tuple[List[SearchResult], int] 的接口设计依赖于 URL 构造正确性。若实际格式与假设不同，整个搜索功能完全失效。",
+      "autofix_class": "auto",
+      "finding_type": "omission",
+      "suggested_fix": "在 Unit 2 开始实现时优先验证 URL 格式（通过手动访问或 curl -I 探测），再确定 search_parse() 的 URL 构造逻辑。",
+      "confidence": 0.8,
+      "evidence": [
+        "plan Unit 2: URL: https://missav.live/search/{actor_name}?page={page} 或 https://missav.live/search/{actor_name}/{page}",
+        "plan Deferred to Implementation: 分页 URL 格式：?page=N 还是 /N 路径格式，需访问页面验证"
+      ]
+    }
+  ],
+  "residual_risks": [
+    "missav.live 搜索页 Cloudflare 拦截策略可能与详情页不同（搜索页更频繁触发验证），PlaywrightSessionManager 复用可能不够",
+    "若演员视频数量极大（数百个），_page_results 缓存会随浏览页面线性增长内存占用，没有 eviction 策略",
+    "QSpinBox(1-5) 并发数限制可能过低，用户若想同时下载 10 个视频需要改代码",
+    "DownloadQueue Worker 完成时若 ActorSearchTab 已被销毁（如用户关闭 tab 切到 Bilibili Tab），item_finished 信号会发送到已销毁的 QObject，可能引发 Qt 警告"
+  ],
+  "deferred_questions": [
+    "搜索页 HTML 中视频项的实际 CSS selector 结构（title、thumbnail、duration、video_id 提取自哪个元素）",
+    "分页 URL 格式是 query string (?page=N) 还是 path (/N)",
+    "已下载判断逻辑：DownloadHistoryWidget 历史记录是否在应用启动时加载到内存 Set？还是每次查询都遍历 list_widget？O(1) 判断假设可能不成立",
+    "ActorSearchTab 窗口关闭时，如何安全清理 DownloadQueue 中正在运行的 Worker？是否有 QThread.deleteLater() 等待机制？"
+  ]
+}

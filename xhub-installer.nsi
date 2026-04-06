@@ -7,11 +7,11 @@
 ; --- Application metadata ---
 !define APPNAME "xhub"
 !define COMPANYNAME "xhub"
-!define DESCRIPTION "xhub - 视频下载器"
+!define DESCRIPTION "xhub video downloader"
 !define VERSIONMAJOR 1
 !define VERSIONMINOR 0
 !define VERSIONBUILD 0
-!define INSTALLSIZE 350000
+!define INSTALLSIZE 250000
 
 ; --- Installer attributes ---
 Name "${APPNAME}"
@@ -46,14 +46,6 @@ Section "Install"
     ; Install main executable
     File "dist\xhub.exe"
 
-    ; Install bundled Playwright browsers (if present in dist)
-    IfFileExists "dist\ms-playwright\*.*" 0 +2
-        SetOutPath "$INSTDIR\ms-playwright"
-        File /r "dist\ms-playwright\*.*"
-
-    ; Restore $INSTDIR after recursive File
-    SetOutPath $INSTDIR
-
     ; Store install path in registry (R7)
     WriteRegStr HKLM "Software\${COMPANYNAME}\${APPNAME}" "InstallDir" "$INSTDIR"
 
@@ -75,7 +67,7 @@ Section "Install"
     ; Create Start Menu shortcuts (R6)
     CreateDirectory "$SMPROGRAMS\${APPNAME}"
     CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\xhub.exe" "" "$INSTDIR\xhub.exe" 0
-    CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME} (卸载).lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
+    CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME} Uninstall.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
 
     ; Create Desktop shortcut (R6)
     CreateShortcut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\xhub.exe" "" "$INSTDIR\xhub.exe" 0
@@ -87,15 +79,12 @@ Section "Uninstall"
     Delete "$INSTDIR\xhub.exe"
     Delete "$INSTDIR\uninstall.exe"
 
-    ; Remove bundled browsers
-    RMDir /r "$INSTDIR\ms-playwright"
-
     ; Remove install directory
     RMDir "$INSTDIR"
 
     ; Remove Start Menu shortcuts
     Delete "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk"
-    Delete "$SMPROGRAMS\${APPNAME}\${APPNAME} (卸载).lnk"
+    Delete "$SMPROGRAMS\${APPNAME}\${APPNAME} Uninstall.lnk"
     RMDir "$SMPROGRAMS\${APPNAME}"
 
     ; Remove Desktop shortcut
