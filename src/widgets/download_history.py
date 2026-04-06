@@ -4,6 +4,8 @@ import sys
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtCore import Qt
 
+from src.i18n import _
+
 
 class DownloadHistoryWidget(QWidget):
     def __init__(self, parent=None):
