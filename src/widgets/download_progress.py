@@ -4,22 +4,26 @@ from PyQt6.QtCore import Qt
 class DownloadProgress(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("download_progress")
         layout = QVBoxLayout(self)
-        layout.setSpacing(4)
+        layout.setSpacing(8)
 
         self.status_label = QLabel("等待下载...")
-        self.status_label.setStyleSheet("color: #888;")
+        self.status_label.setObjectName("status_label")
         layout.addWidget(self.status_label)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setTextVisible(False)
         layout.addWidget(self.progress_bar)
 
         speed_layout = QHBoxLayout()
+        speed_layout.setSpacing(12)
         self.speed_label = QLabel("")
+        self.speed_label.setObjectName("speed_label")
         self.size_label = QLabel("")
+        self.size_label.setObjectName("size_label")
         speed_layout.addWidget(self.speed_label)
         speed_layout.addWidget(self.size_label)
         speed_layout.addStretch()

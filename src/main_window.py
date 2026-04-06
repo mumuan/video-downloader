@@ -2,9 +2,10 @@
 import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QLabel, QFileDialog, QMessageBox
+    QLineEdit, QPushButton, QLabel, QFileDialog, QMessageBox,
+    QTabWidget
 )
-from PyQt6.QtCore import QThread, pyqtSlot
+from PyQt6.QtCore import QThread, pyqtSlot, Qt
 from src.video_parser import VideoParser, InvalidVideoURLError
 from src.downloader import Downloader, DownloadState
 from src.config import Config
@@ -13,6 +14,7 @@ from src.widgets.video_info_panel import VideoInfoPanel
 from src.widgets.download_progress import DownloadProgress
 from src.widgets.download_history import DownloadHistoryWidget
 from src.widgets.file_exists_dialog import FileExistsDialog
+from src.widgets.actor_search_tab import ActorSearchTab
 
 
 class DownloadThread(QThread):
@@ -34,7 +36,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("xhub")
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(700, 600)
 
         app_data = os.path.join(os.path.expanduser("~"), ".bilibili-downloader")
         os.makedirs(app_data, exist_ok=True)
@@ -45,7 +47,45 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
+
+        # Shared history widget (visible below tabs)
+        self.history_widget = DownloadHistoryWidget()
+        self.history_widget.setObjectName("download_history")
+
+        # Tabs
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self._create_bilibili_tab(), "Bilibili 下载")
+        self._actor_tab = ActorSearchTab(self.config, self.history_widget)
+        self._tabs.addTab(self._actor_tab, "演员搜索")
+        layout.addWidget(self._tabs)
+
+        # History (shared, below tabs)
+        history_label = QLabel("下载历史")
+        history_label.setObjectName("history_label")
+        layout.addWidget(history_label)
+        layout.addWidget(self.history_widget)
+
+        # Output dir (shared)
+        dir_layout = QHBoxLayout()
+        self.dir_label = QLabel(f"输出目录：{self.config.output_dir}")
+        self.dir_label.setObjectName("dir_label")
+        self.change_dir_btn = QPushButton("更改")
+        self.change_dir_btn.setObjectName("change_dir_btn")
+        self.change_dir_btn.clicked.connect(self._on_change_dir)
+        dir_layout.addWidget(self.dir_label)
+        dir_layout.addWidget(self.change_dir_btn)
+        layout.addLayout(dir_layout)
+
+        layout.addStretch()
+
+        self.url_input.returnPressed.connect(self._on_download_clicked)
+
+    def _create_bilibili_tab(self) -> QWidget:
+        """Build the Bilibili download tab content."""
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setSpacing(10)
 
         # URL input row
         input_layout = QHBoxLayout()
@@ -55,36 +95,18 @@ class MainWindow(QMainWindow):
         self.download_btn.clicked.connect(self._on_download_clicked)
         input_layout.addWidget(self.url_input)
         input_layout.addWidget(self.download_btn)
-        layout.addLayout(input_layout)
+        tab_layout.addLayout(input_layout)
 
         # Video info panel
         self.info_panel = VideoInfoPanel()
-        layout.addWidget(self.info_panel)
+        tab_layout.addWidget(self.info_panel)
 
         # Progress
         self.progress_widget = DownloadProgress()
-        layout.addWidget(self.progress_widget)
+        tab_layout.addWidget(self.progress_widget)
 
-        # History
-        history_label = QLabel("下载历史")
-        history_label.setStyleSheet("font-weight: bold;")
-        layout.addWidget(history_label)
-        self.history_widget = DownloadHistoryWidget()
-        layout.addWidget(self.history_widget)
-
-        # Output dir
-        dir_layout = QHBoxLayout()
-        self.dir_label = QLabel(f"输出目录：{self.config.output_dir}")
-        self.dir_label.setStyleSheet("color: #666; font-size: 12px;")
-        self.change_dir_btn = QPushButton("更改")
-        self.change_dir_btn.clicked.connect(self._on_change_dir)
-        dir_layout.addWidget(self.dir_label)
-        dir_layout.addWidget(self.change_dir_btn)
-        layout.addLayout(dir_layout)
-
-        layout.addStretch()
-
-        self.url_input.returnPressed.connect(self._on_download_clicked)
+        tab_layout.addStretch()
+        return tab
 
     def _on_change_dir(self):
         folder = QFileDialog.getExistingDirectory(self, "选择输出目录", self.config.output_dir)
@@ -177,3 +199,28 @@ class MainWindow(QMainWindow):
             source_site=source_site,
         )
         self.download_btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        """Warn user if a download is in progress."""
+        # Check bilibili tab download
+        bilibili_downloading = (
+            hasattr(self, 'downloader')
+            and self.downloader.state == DownloadState.DOWNLOADING
+        )
+        # Check actor tab download
+        actor_downloading = (
+            self._actor_tab._download_state
+            in (ActorSearchTab.DOWNLOAD_EXTRACTING, ActorSearchTab.DOWNLOAD_DOWNLOADING)
+        )
+
+        if bilibili_downloading or actor_downloading:
+            reply = QMessageBox.question(
+                self, "确认退出",
+                "下载进行中，确定退出？",
+                QMessageBox.StandardButton.Yes,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.No:
+                event.ignore()
+                return
+        event.accept()

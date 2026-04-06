@@ -6,6 +6,7 @@ class Config:
         self.app_data_dir = app_data_dir
         self.config_file = os.path.join(app_data_dir, "config.json")
         self._output_dir = ""
+        self._concurrent_downloads = 2
         self._load()
 
     def _load(self):
@@ -14,10 +15,13 @@ class Config:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self._output_dir = data.get('output_dir', self._default_output_dir())
+                    self._concurrent_downloads = data.get('concurrent_downloads', 2)
             except (json.JSONDecodeError, OSError):
                 self._output_dir = self._default_output_dir()
+                self._concurrent_downloads = 2
         else:
             self._output_dir = self._default_output_dir()
+            self._concurrent_downloads = 2
 
     def _default_output_dir(self) -> str:
         videos = os.path.join(os.path.expanduser("~"), "Videos", "bilibili")
@@ -34,10 +38,22 @@ class Config:
         self._output_dir = value
         self.save()
 
+    @property
+    def concurrent_downloads(self) -> int:
+        return self._concurrent_downloads
+
+    @concurrent_downloads.setter
+    def concurrent_downloads(self, value: int):
+        self._concurrent_downloads = max(1, min(5, value))
+        self.save()
+
     def save(self):
         try:
             os.makedirs(self.app_data_dir, exist_ok=True)
             with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump({'output_dir': self._output_dir}, f, ensure_ascii=False, indent=2)
+                json.dump({
+                    'output_dir': self._output_dir,
+                    'concurrent_downloads': self._concurrent_downloads,
+                }, f, ensure_ascii=False, indent=2)
         except OSError:
             pass

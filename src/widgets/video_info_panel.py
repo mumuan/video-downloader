@@ -7,29 +7,37 @@ import urllib.request
 class VideoInfoPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("video_info_panel")
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
         self.title_label = QLabel("暂无视频信息")
-        self.title_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.title_label.setObjectName("video_title")
         layout.addWidget(self.title_label)
 
         meta_layout = QHBoxLayout()
         self.bv_label = QLabel("")
+        self.bv_label.setObjectName("video_meta")
         self.duration_label = QLabel("")
+        self.duration_label.setObjectName("video_meta")
         meta_layout.addWidget(self.bv_label)
         meta_layout.addWidget(self.duration_label)
         meta_layout.addStretch()
         layout.addLayout(meta_layout)
 
+        thumbnail_container = QWidget()
+        thumbnail_container.setObjectName("thumbnail_container")
+        thumbnail_layout = QVBoxLayout(thumbnail_container)
+        thumbnail_layout.setContentsMargins(0, 0, 0, 0)
         self.thumbnail_label = QLabel()
+        self.thumbnail_label.setObjectName("thumbnail_label")
         self.thumbnail_label.setFixedSize(160, 90)
-        self.thumbnail_label.setStyleSheet("border: 1px solid #ccc; background: #f0f0f0;")
         self.thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.thumbnail_label)
+        thumbnail_layout.addWidget(self.thumbnail_label)
+        layout.addWidget(thumbnail_container)
 
         self.filename_label = QLabel("")
-        self.filename_label.setStyleSheet("color: #666; font-size: 12px;")
+        self.filename_label.setObjectName("filename_label")
         self.filename_label.setWordWrap(True)
         layout.addWidget(self.filename_label)
 

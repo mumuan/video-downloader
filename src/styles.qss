@@ -1,0 +1,272 @@
+/* xhub Design System Stylesheet */
+
+* {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+/* Color Palette */
+QWidget {
+    color: #1a1a2e;
+    background: transparent;
+}
+
+QMainWindow {
+    background: #f8f9fc;
+}
+
+/* URL Input */
+QLineEdit {
+    padding: 12px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    font-size: 14px;
+    color: #1a1a2e;
+    selection-background-color: #3b82f6;
+}
+
+QLineEdit:focus {
+    border: 2px solid #3b82f6;
+    background: #ffffff;
+}
+
+QLineEdit:!enabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+/* Download Button */
+QPushButton {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 10px;
+    background: #3b82f6;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 80px;
+}
+
+QPushButton:hover {
+    background: #2563eb;
+}
+
+QPushButton:pressed {
+    background: #1d4ed8;
+}
+
+QPushButton:!enabled {
+    background: #cbd5e1;
+    color: #94a3b8;
+}
+
+/* History Label */
+QLabel#history_label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    padding: 8px 0 4px 0;
+}
+
+QLabel#history_title {
+    font-size: 13px;
+    color: #1e293b;
+}
+
+QLabel#history_bv {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+QLabel#history_size {
+    font-size: 11px;
+    color: #64748b;
+}
+
+/* Directory Label */
+QLabel#dir_label {
+    color: #64748b;
+    font-size: 12px;
+    padding: 4px 0;
+}
+
+/* Change Directory Button */
+QPushButton#change_dir_btn {
+    padding: 6px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: auto;
+}
+
+QPushButton#change_dir_btn:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+    background: #f8fafc;
+}
+
+/* Video Info Panel */
+QWidget#video_info_panel {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+}
+
+QLabel#video_title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+QLabel#video_meta {
+    font-size: 12px;
+    color: #64748b;
+}
+
+QWidget#thumbnail_container {
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+}
+
+QLabel#thumbnail_label {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+QLabel#filename_label {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+/* Download Progress */
+QWidget#download_progress {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+}
+
+QLabel#status_label {
+    font-size: 13px;
+    font-weight: 500;
+    padding-bottom: 8px;
+}
+
+QProgressBar {
+    border: none;
+    border-radius: 6px;
+    background: #e2e8f0;
+    height: 12px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    border-radius: 6px;
+    background: #3b82f6;
+}
+
+QLabel#speed_label,
+QLabel#size_label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* Download History */
+QWidget#download_history {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 0;
+}
+
+QListWidget {
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    padding: 8px;
+}
+
+QListWidget::item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin: 2px 4px;
+    background: transparent;
+}
+
+QListWidget::item:selected {
+    background: #f1f5f9;
+}
+
+QListWidget::item:hover {
+    background: #f8fafc;
+}
+
+/* File Exists Dialog */
+QDialog#file_exists_dialog {
+    background: #f8f9fc;
+}
+
+QWidget#dialog_content {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px;
+}
+
+QLabel#dialog_title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+QLabel#dialog_message {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+QPushButton#dialog_btn {
+    padding: 10px 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 500;
+    min-width: 80px;
+}
+
+QPushButton#dialog_btn:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+QPushButton[class="primary"] {
+    border: none;
+    background: #3b82f6;
+    color: #ffffff;
+}
+
+QPushButton[class="primary"]:hover {
+    background: #2563eb;
+}
+
+/* Status Indicator Dot */
+QWidget#status_dot {
+    min-width: 8px;
+    max-width: 8px;
+    min-height: 8px;
+    max-height: 8px;
+    border-radius: 4px;
+}
+
+QWidget#status_dot.success { background: #22c55e; }
+QWidget#status_dot.error { background: #ef4444; }
+QWidget#status_dot.downloading { background: #3b82f6; }
+QWidget#status_dot.idle { background: #94a3b8; }
