@@ -11,8 +11,7 @@ from src.downloader import Downloader, DownloadState
 from src.config import Config
 from src.video_info import VideoInfo
 from src.widgets.video_info_panel import VideoInfoPanel
-from src.widgets.download_progress import DownloadProgress
-from src.widgets.download_history import DownloadHistoryWidget
+from src.widgets.download_list_widget import DownloadListWidget, DownloadItem
 from src.widgets.file_exists_dialog import FileExistsDialog
 from src.widgets.actor_search_tab import ActorSearchTab
 from src.i18n import _
@@ -50,22 +49,12 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central)
         layout.setSpacing(10)
 
-        # Shared history widget (visible below tabs)
-        self.history_widget = DownloadHistoryWidget()
-        self.history_widget.setObjectName("download_history")
-
         # Tabs
         self._tabs = QTabWidget()
         self._tabs.addTab(self._create_bilibili_tab(), _("Video Download"))
-        self._actor_tab = ActorSearchTab(self.config, self.history_widget)
+        self._actor_tab = ActorSearchTab(self.config, self.download_list)
         self._tabs.addTab(self._actor_tab, _("Actor Search"))
         layout.addWidget(self._tabs)
-
-        # History (shared, below tabs)
-        history_label = QLabel(_("Download History"))
-        history_label.setObjectName("history_label")
-        layout.addWidget(history_label)
-        layout.addWidget(self.history_widget)
 
         # Output dir (shared)
         dir_layout = QHBoxLayout()
@@ -102,9 +91,9 @@ class MainWindow(QMainWindow):
         self.info_panel = VideoInfoPanel()
         tab_layout.addWidget(self.info_panel)
 
-        # Progress
-        self.progress_widget = DownloadProgress()
-        tab_layout.addWidget(self.progress_widget)
+        # Download list
+        self.download_list = DownloadListWidget()
+        tab_layout.addWidget(self.download_list)
 
         tab_layout.addStretch()
         return tab
@@ -122,7 +111,6 @@ class MainWindow(QMainWindow):
             return
 
         self.download_btn.setEnabled(False)
-        self.progress_widget.set_idle()
 
         try:
             self.current_video_info = self.parser.parse(raw)
@@ -178,6 +166,20 @@ class MainWindow(QMainWindow):
         self.downloader.finished.connect(self._on_finished)
         self.downloader.error.connect(self._on_error)
 
+        # Add to download list
+        item = DownloadItem(
+            id=bv_id,
+            title=self.current_video_info.title,
+            output_filename=self.current_video_info.output_filename,
+            source_site=source_site,
+            state="downloading",
+            progress=0.0,
+            speed="",
+            size_str="",
+            file_path=None,
+        )
+        self.download_list.add_item(item)
+
         self.download_thread = DownloadThread(
             self.downloader, url, self.current_video_info.output_filename, direct_url
         )
@@ -185,7 +187,13 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(float, str, str)
     def _on_progress(self, percent, speed, size):
-        self.progress_widget.set_downloading(percent, speed, size)
+        if self.current_video_info:
+            self.download_list.update_item(
+                self.current_video_info.bv_id,
+                progress=percent,
+                speed=speed,
+                size_str=size,
+            )
 
     @pyqtSlot(str)
     def _on_state(self, state):
@@ -193,27 +201,23 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(str)
     def _on_finished(self, path):
-        self.progress_widget.set_finished()
-        source_site = getattr(self.current_video_info, 'source_site', 'bilibili')
-        self.history_widget.add_entry(
-            self.current_video_info.title,
-            self.current_video_info.bv_id,
-            "finished",
-            source_site=source_site,
-            file_path=path,
-        )
+        if self.current_video_info:
+            self.download_list.update_item(
+                self.current_video_info.bv_id,
+                state="finished",
+                progress=100.0,
+                file_path=path,
+            )
         self.download_btn.setEnabled(True)
 
     @pyqtSlot(str)
     def _on_error(self, message):
-        self.progress_widget.set_error(message)
-        source_site = getattr(self.current_video_info, 'source_site', 'bilibili') if self.current_video_info else 'bilibili'
-        self.history_widget.add_entry(
-            self.current_video_info.title if self.current_video_info else _("Unknown"),
-            self.current_video_info.bv_id if self.current_video_info else "",
-            "error",
-            source_site=source_site,
-        )
+        if self.current_video_info:
+            self.download_list.update_item(
+                self.current_video_info.bv_id,
+                state="error",
+                error_message=message,
+            )
         self.download_btn.setEnabled(True)
 
     def closeEvent(self, event):

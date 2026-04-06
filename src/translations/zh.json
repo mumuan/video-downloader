@@ -80,5 +80,8 @@
   "Selected 0 videos": "已选 0 个视频",
   "Title": "标题",
   "[No Cover]": "[无封面]",
-  "Downloading...": "下载中..."
+  "Downloading...": "下载中...",
+  "Speed": "速度",
+  "Progress": "进度",
+  "Download List": "下载列表"
 }

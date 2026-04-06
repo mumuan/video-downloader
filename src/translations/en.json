@@ -80,5 +80,8 @@
   "Selected 0 videos": "Selected 0 videos",
   "Title": "Title",
   "[No Cover]": "[No Cover]",
-  "Downloading...": "Downloading..."
+  "Downloading...": "Downloading...",
+  "Speed": "Speed",
+  "Progress": "Progress",
+  "Download List": "Download List"
 }

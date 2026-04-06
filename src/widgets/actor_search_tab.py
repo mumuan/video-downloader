@@ -13,6 +13,7 @@ from typing import Union, Optional
 from PyQt6.QtGui import QIcon
 
 from src.i18n import _
+from src.widgets.download_list_widget import DownloadItem
 from src.search_result import SearchResult
 from src.parsers.missav_parser import MissavParser
 from src.parsers.session_manager import VideoParseError
@@ -87,10 +88,10 @@ class ActorSearchTab(QWidget):
     DOWNLOAD_DOWNLOADING = "downloading"
     DOWNLOAD_FINISHED = "finished"
 
-    def __init__(self, config: Config, history_widget, parent=None):
+    def __init__(self, config: Config, download_list, parent=None):
         super().__init__(parent)
         self._config = config
-        self._history_widget = history_widget
+        self._download_list = download_list
         self._parser = MissavParser()
         self._search_worker: SearchWorker | None = None
         self._download_queue: DownloadQueue | None = None
@@ -454,6 +455,22 @@ class ActorSearchTab(QWidget):
         self._batch_progress.setValue(50)
         self._update_ui_state()
 
+        # Add items to download list
+        for sr, vi in self._extract_queue:
+            if self._download_list:
+                item = DownloadItem(
+                    id=vi.video_id,
+                    title=sr.title,
+                    output_filename=vi.output_filename,
+                    source_site="missav",
+                    state="downloading",
+                    progress=0.0,
+                    speed="",
+                    size_str="",
+                    file_path=None,
+                )
+                self._download_list.add_item(item)
+
         video_infos = [vi for _, vi in self._extract_queue]
         self._download_queue = DownloadQueue(
             self._config.output_dir,
@@ -481,10 +498,12 @@ class ActorSearchTab(QWidget):
                 title = sr.title
                 break
         self._item_progress_label.setText(_(f"Downloading: {title} ({percent:.0f}%)"))
+        if self._download_list:
+            self._download_list.update_item(video_id, progress=percent)
 
     @pyqtSlot(str)
     def _on_item_finished(self, video_id: str):
-        # Find title, video_info and add to history
+        # Find title, video_info and update download list
         title = video_id
         video_info = None
         for sr, vi in self._extract_queue:
@@ -493,9 +512,14 @@ class ActorSearchTab(QWidget):
                 video_info = vi
                 break
         self.download_entry_finished.emit(title, video_id, "missav")
-        if self._history_widget:
+        if self._download_list:
             file_path = os.path.join(self._config.output_dir, video_info.output_filename) if video_info else ""
-            self._history_widget.add_entry(title, video_id, "finished", source_site="missav", file_path=file_path)
+            self._download_list.update_item(
+                video_id,
+                state="finished",
+                progress=100.0,
+                file_path=file_path,
+            )
 
     @pyqtSlot(str, str)
     def _on_item_failed(self, video_id: str, error: str):
@@ -504,8 +528,12 @@ class ActorSearchTab(QWidget):
             if sr.video_id == video_id:
                 title = sr.title
                 break
-        if self._history_widget:
-            self._history_widget.add_entry(title, video_id, "error", source_site="missav")
+        if self._download_list:
+            self._download_list.update_item(
+                video_id,
+                state="error",
+                error_message=error,
+            )
 
     @pyqtSlot(list, list)
     def _on_batch_finished(self, success_ids: list, failed_ids: list):
