@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
 
         # Tabs
         self._tabs = QTabWidget()
-        self._tabs.addTab(self._create_bilibili_tab(), _("Bilibili Download"))
+        self._tabs.addTab(self._create_bilibili_tab(), _("Video Download"))
         self._actor_tab = ActorSearchTab(self.config, self.history_widget)
         self._tabs.addTab(self._actor_tab, _("Actor Search"))
         layout.addWidget(self._tabs)
