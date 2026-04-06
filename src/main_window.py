@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
         # URL input row
         input_layout = QHBoxLayout()
         self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText(_("Enter Bilibili URL or BV号..."))
+        self.url_input.setPlaceholderText(_("Enter Bilibili/YouTube URL or BV号/Video ID..."))
         self.download_btn = QPushButton(_("Download"))
         self.download_btn.clicked.connect(self._on_download_clicked)
         input_layout.addWidget(self.url_input)
@@ -155,8 +155,22 @@ class MainWindow(QMainWindow):
                 self.current_video_info.output_filename = f"{base}_{counter}{ext}"
 
         bv_id = self.current_video_info.bv_id
-        url = f"https://www.bilibili.com/video/{bv_id}"
-        direct_url = getattr(self.current_video_info, 'direct_url', None)
+        source_site = self.current_video_info.source_site
+        if source_site == "bilibili":
+            url = f"https://www.bilibili.com/video/{bv_id}"
+            direct_url = None
+        elif source_site == "youtube":
+            url = f"https://www.youtube.com/watch?v={bv_id}"
+            direct_url = None
+        elif source_site == "missav":
+            url = None
+            direct_url = getattr(self.current_video_info, 'direct_url', None)
+            if not direct_url:
+                self.download_btn.setEnabled(True)
+                return
+        else:
+            self.download_btn.setEnabled(True)
+            return
 
         self.downloader = Downloader(self.config.output_dir)
         self.downloader.progress_changed.connect(self._on_progress)

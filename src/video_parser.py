@@ -13,7 +13,7 @@ class VideoParser:
     """Factory that routes to the appropriate site-specific parser."""
 
     def _detect_site(self, raw: str) -> str:
-        """Detect site from raw URL or input. Returns 'bilibili', 'missav', or raises InvalidVideoURLError."""
+        """Detect site from raw URL or input. Returns 'bilibili', 'missav', 'youtube', or raises InvalidVideoURLError."""
         raw = raw.strip()
         if not raw:
             raise InvalidVideoURLError(_("Input is empty"))
@@ -21,7 +21,9 @@ class VideoParser:
             return "missav"
         if "bilibili.com" in raw or raw.startswith("BV"):
             return "bilibili"
-        raise InvalidVideoURLError(_("Unsupported site, only Bilibili and missav.ws are supported"))
+        if "youtube.com" in raw or "youtu.be" in raw:
+            return "youtube"
+        raise InvalidVideoURLError(_("Unsupported site, only Bilibili, missav.ws and YouTube are supported"))
 
     def parse(self, raw_input: str):
         site = self._detect_site(raw_input)
@@ -29,5 +31,8 @@ class VideoParser:
             return BilibiliParser().parse(raw_input)
         elif site == "missav":
             return MissavParser().parse(raw_input)
+        elif site == "youtube":
+            from src.parsers.youtube_parser import YoutubeParser
+            return YoutubeParser().parse(raw_input)
         else:
             raise InvalidVideoURLError(_("Unsupported site"))

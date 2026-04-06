@@ -18,7 +18,14 @@ def test_detect_site_missav():
 def test_detect_site_unsupported():
     p = VideoParser()
     with pytest.raises(InvalidVideoURLError):
-        p._detect_site("https://youtube.com/watch?v=xxx")
+        p._detect_site("https://example.com/video")
+
+
+def test_detect_site_youtube():
+    p = VideoParser()
+    assert p._detect_site("https://www.youtube.com/watch?v=abc123") == "youtube"
+    assert p._detect_site("https://youtube.com/watch?v=abc123") == "youtube"
+    assert p._detect_site("https://youtu.be/abc123") == "youtube"
 
 
 def test_detect_site_empty():
