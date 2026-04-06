@@ -25,4 +25,4 @@ def test_panel_shows_video_info():
 def test_panel_empty_by_default():
     app = QApplication.instance() or QApplication([])
     panel = VideoInfoPanel()
-    assert "暂无视频信息" in panel.title_label.text()
+    assert "No video info" in panel.title_label.text()

@@ -11,8 +11,8 @@ def test_detect_site_bilibili_url():
 
 def test_detect_site_missav():
     p = VideoParser()
-    assert p._detect_site("https://missav.live/ja/mfcw-008") == "missav"
-    assert p._detect_site("https://missav.live/mfcw-008-uncensored-leak") == "missav"
+    assert p._detect_site("https://missav.ws/ja/mfcw-008") == "missav"
+    assert p._detect_site("https://missav.ws/mfcw-008-uncensored-leak") == "missav"
 
 
 def test_detect_site_unsupported():

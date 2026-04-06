@@ -66,7 +66,7 @@ class Downloader(QObject):
             # 写入 Netscape 格式 cookie 文件（过滤掉 expires=-1 的无效项）
             cookie_lines = ["# Netscape HTTP Cookie File"]
             for c in state.get("cookies", []):
-                domain = c.get("domain", "missav.live")
+                domain = c.get("domain", "missav.ws")
                 if not domain.startswith("."):
                     domain = "." + domain
                 expires = c.get("expires", -1)
@@ -105,7 +105,7 @@ class Downloader(QObject):
                 ydl_opts["cookiefile"] = self._cookie_file
             ydl_opts["http_headers"] = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-                "Referer": "https://missav.live/",
+                "Referer": "https://missav.ws/",
             }
 
         try:

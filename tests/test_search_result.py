@@ -8,13 +8,13 @@ def test_search_result_basic():
         title="Test Video",
         thumbnail="https://example.com/thumb.jpg",
         duration=120,
-        detail_url="https://missav.live/abc123",
+        detail_url="https://missav.ws/abc123",
     )
     assert sr.video_id == "abc123"
     assert sr.title == "Test Video"
     assert sr.thumbnail == "https://example.com/thumb.jpg"
     assert sr.duration == 120
-    assert sr.detail_url == "https://missav.live/abc123"
+    assert sr.detail_url == "https://missav.ws/abc123"
 
 
 def test_search_result_formatted_duration():
