@@ -20,8 +20,12 @@ def _get_system_playwright_browsers_path() -> Path | None:
     """获取系统已安装的 Playwright 浏览器路径（如果有）"""
     base = Path(os.path.expanduser("~")) / "AppData" / "Local" / "ms-playwright"
     if base.exists():
-        for sub in ["chromium_headless_shell-1208", "chromium-1208"]:
-            if (base / sub).exists():
+        # playwright-stealth requires chromium_headless_shell, check for it
+        if (base / "chromium_headless_shell-1179").exists():
+            return base
+        # Also accept newer versions if headless_shell isn't available
+        for sub in sorted(base.iterdir(), reverse=True):
+            if sub.is_dir() and sub.name.startswith("chromium"):
                 return base
     return None
 
@@ -184,13 +188,32 @@ class PlaywrightSessionManager:
         # 动态导入：将系统 site-packages 接入后再导入
         _ensure_playwright_importable()
         playwright = importlib.import_module("playwright.sync_api")
-        stealth_module = importlib.import_module("playwright_stealth.stealth")
 
         p = playwright.sync_playwright().start()
-        stealth_module.Stealth().hook_playwright_context(p)
+
+        # Find chromium executable path
+        base = Path(os.path.expanduser("~")) / "AppData" / "Local" / "ms-playwright"
+        headless_shell_path = base / "chromium_headless_shell-1179"
+        chromium_path = None
+        for sub in sorted(base.iterdir(), reverse=True):
+            if sub.is_dir() and sub.name.startswith("chromium-") and not "headless" in sub.name:
+                chromium_path = sub / "chrome-win64" / "chrome.exe"
+                if chromium_path.exists():
+                    break
+                chromium_path = None
+
+        # Only use stealth if headless_shell is available
+        if headless_shell_path.exists():
+            stealth_module = importlib.import_module("playwright_stealth.stealth")
+            stealth_module.Stealth().hook_playwright_context(p)
+
+        launch_options = {}
+        if not headless_shell_path.exists() and chromium_path:
+            # Use regular chromium when headless_shell isn't available
+            launch_options["executable_path"] = str(chromium_path)
 
         if self.is_cookie_valid():
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, **launch_options)
             context = browser.new_context(storage_state=str(self.state_file))
             page = context.new_page()
             page.goto(target_url)
@@ -200,7 +223,7 @@ class PlaywrightSessionManager:
             browser.close()
 
         for attempt in range(3):
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, **launch_options)
             context = browser.new_context()
             page = context.new_page()
             page.goto(target_url)
