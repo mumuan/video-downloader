@@ -11,6 +11,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Build artifacts
+build/
+dist/
+*.exe
+
 # Downloaded files
 *.mp4
 *.flv
