@@ -1,7 +1,7 @@
 import json
 import os
 
-from PySide6.QtCore import QLocale
+from PyQt6.QtCore import QLocale
 
 _translations = {}
 _current_lang = "en"
@@ -19,15 +19,34 @@ def _load_translations():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     for lang in ["en", "zh"]:
         path = os.path.join(base_dir, "translations", f"{lang}.json")
-        with open(path, encoding="utf-8") as f:
-            _translations[lang] = json.load(f)
+        try:
+            with open(path, encoding="utf-8") as f:
+                _translations[lang] = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            # Fallback to empty dict, _() will return key as-is
+            _translations[lang] = {}
+
+def _ensure_initialized():
+    """Ensure translations are loaded before using set_language."""
+    if not _translations:
+        init_i18n()
 
 def _(key: str) -> str:
     """Translate a string key to the current language."""
+    if not _translations:
+        _ensure_initialized()
     return _translations.get(_current_lang, {}).get(key, key)
 
 def set_language(lang: str):
-    """Manually set language (for testing)."""
+    """Manually set language."""
+    _ensure_initialized()
     global _current_lang
     if lang in _translations:
         _current_lang = lang
+    else:
+        # Fall back to English silently
+        _current_lang = "en"
+
+def get_language() -> str:
+    """Get current language code."""
+    return _current_lang
