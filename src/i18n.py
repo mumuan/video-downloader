@@ -1,13 +1,16 @@
 import json
 import os
 
+from PySide6.QtCore import QLocale
+
 _translations = {}
 _current_lang = "en"
 
 def init_i18n():
-    """Initialize i18n with English as default."""
+    """Initialize i18n with system language detection."""
     global _current_lang
-    _current_lang = "en"
+    system_lang = QLocale.system().bcp47Name().split("-")[0]
+    _current_lang = system_lang if system_lang in ["en", "zh"] else "en"
     _load_translations()
 
 def _load_translations():

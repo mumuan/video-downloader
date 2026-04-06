@@ -3,6 +3,7 @@ from src.i18n import _, init_i18n, set_language
 
 def test_translate_returns_english_by_default():
     init_i18n()
+    set_language("en")
     assert _("Download") == "Download"
 
 def test_translate_returns_chinese_when_set():
