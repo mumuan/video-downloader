@@ -202,14 +202,16 @@ class PlaywrightSessionManager:
                     break
                 chromium_path = None
 
-        # Only use stealth if headless_shell is available
+        # Use stealth if headless_shell is available
         if headless_shell_path.exists():
-            stealth_module = importlib.import_module("playwright_stealth.stealth")
-            stealth_module.Stealth().hook_playwright_context(p)
+            try:
+                stealth_module = importlib.import_module("playwright_stealth.stealth")
+                stealth_module.Stealth().hook_playwright_context(p)
+            except Exception as e:
+                print(f"Stealth hook failed: {e}")
 
         launch_options = {}
         if not headless_shell_path.exists() and chromium_path:
-            # Use regular chromium when headless_shell isn't available
             launch_options["executable_path"] = str(chromium_path)
 
         if self.is_cookie_valid():

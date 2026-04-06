@@ -82,7 +82,10 @@ def test_parse_success():
 def test_parse_no_video_raises_error():
     """Test parse raises error when video cannot be extracted."""
     mock_page = MagicMock()
-    mock_page.wait_for_selector.side_effect = Exception("timeout")
+    mock_page.wait_for_load_state.side_effect = Exception("timeout")
+    # Also mock page.evaluate to return empty so video_url stays empty
+    mock_page.evaluate.return_value = None
+    mock_page.eval_on_selector.return_value = None
 
     mock_context = MagicMock()
     mock_context.new_page.return_value = mock_page

@@ -128,10 +128,11 @@ class MissavParser:
             page.on("request", on_request)
             page.goto(raw_url)
 
+            # Wait for page to load (not for visible video since videos may be hidden)
             try:
-                page.wait_for_selector("video", timeout=30000)
+                page.wait_for_load_state("networkidle", timeout=30000)
             except Exception:
-                raise VideoParseError(_("Unable to get video, please check if the link is valid"))
+                page.wait_for_timeout(5000)  # fallback to just waiting
 
             video_url = ""
             for source_expr in [
