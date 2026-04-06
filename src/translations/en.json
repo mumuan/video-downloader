@@ -63,5 +63,21 @@
   "Unable to get video direct link, please check if the link is valid": "Unable to get video direct link, please check if the link is valid",
   "Please wait...": "Please wait...",
   "Cloudflare verification failed, please try again later": "Cloudflare verification failed, please try again later",
-  "Cloudflare verification timed out, please try again later": "Cloudflare verification timed out, please try again later"
+  "Cloudflare verification timed out, please try again later": "Cloudflare verification timed out, please try again later",
+  "Batch Download Complete": "Batch Download Complete",
+  "Concurrent ": "Concurrent ",
+  "Cover": "Cover",
+  "Download Complete": "Download Complete",
+  "Duration": "Duration",
+  "Enter actor name...": "Enter actor name...",
+  "Extracting links...": "Extracting links...",
+  "Next Page": "Next Page",
+  "No related videos found for this actor": "No related videos found for this actor",
+  "Previous Page": "Previous Page",
+  "Search Failed": "Search Failed",
+  "Searching...": "Searching...",
+  "Selected 0 videos": "Selected 0 videos",
+  "Title": "Title",
+  "[No Cover]": "[No Cover]",
+  "Downloading...": "Downloading..."
 }
