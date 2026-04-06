@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from src.parsers.missav_parser import MissavParser
 from src.parsers.session_manager import VideoParseError
@@ -44,18 +44,15 @@ def test_make_filename_sanitizes_chars():
     assert "mfcw-008" in result
 
 
-@patch("src.parsers.missav_parser.playwright")
-def test_parse_success(mock_playwright):
+def test_parse_success():
+    """Test parse success with mocked playwright session."""
     mock_page = MagicMock()
     mock_page.title.return_value = "测试视频"
-    # page.evaluate 用于 window.source1280 / window.source842 提取
-    # 第一次返回 surrit.com URL（模拟完整 VOD playlist）
     mock_page.evaluate.side_effect = [
-        "https://surrit.com/test-id/1280x720/video.m3u8",  # window.source1280
+        "https://surrit.com/test-id/1280x720/video.m3u8",
     ]
-    # eval_on_selector 只在 fallback 路径使用（thumbnail）
     mock_page.eval_on_selector.side_effect = [
-        "https://cdn.example.com/thumb.jpg",  # og:image
+        "https://cdn.example.com/thumb.jpg",
     ]
 
     mock_context = MagicMock()
@@ -64,23 +61,13 @@ def test_parse_success(mock_playwright):
     mock_browser = MagicMock()
     mock_browser.new_context.return_value = mock_context
 
-    mock_p = MagicMock()
-    mock_p.chromium.launch.return_value = mock_browser
+    mock_playwright_session = MagicMock()
+    mock_playwright_session.get_browser.return_value = (mock_context, mock_browser, MagicMock())
 
-    mock_playwright.sync_playwright.return_value.__enter__ = MagicMock(
-        return_value=mock_p
-    )
-    mock_playwright.sync_playwright.return_value.__exit__ = MagicMock(
-        return_value=False
-    )
+    parser = MissavParser()
+    parser._playwright_session = mock_playwright_session
 
-    # Mock SessionManager.get_verified_context at module level
-    with patch(
-        "src.parsers.missav_parser.SessionManager.get_verified_context"
-    ) as mock_get_ctx:
-        mock_get_ctx.return_value = (mock_context, mock_browser)
-
-        parser = MissavParser()
+    with patch.object(parser, '_parse_with_curl', return_value=None):
         result = parser.parse("https://missav.live/ja/mfcw-008")
 
     assert isinstance(result, VideoInfo)
@@ -92,8 +79,8 @@ def test_parse_success(mock_playwright):
     assert "_missav_" in result.output_filename
 
 
-@patch("src.parsers.missav_parser.playwright")
-def test_parse_no_video_raises_error(mock_playwright):
+def test_parse_no_video_raises_error():
+    """Test parse raises error when video cannot be extracted."""
     mock_page = MagicMock()
     mock_page.wait_for_selector.side_effect = Exception("timeout")
 
@@ -103,22 +90,14 @@ def test_parse_no_video_raises_error(mock_playwright):
     mock_browser = MagicMock()
     mock_browser.new_context.return_value = mock_context
 
-    mock_p = MagicMock()
-    mock_p.chromium.launch.return_value = mock_browser
+    mock_playwright_session = MagicMock()
+    mock_playwright_session.get_browser.return_value = (mock_context, mock_browser, MagicMock())
+    mock_playwright_session.is_available.return_value = True
 
-    mock_playwright.sync_playwright.return_value.__enter__ = MagicMock(
-        return_value=mock_p
-    )
-    mock_playwright.sync_playwright.return_value.__exit__ = MagicMock(
-        return_value=False
-    )
+    parser = MissavParser()
+    parser._playwright_session = mock_playwright_session
 
-    with patch(
-        "src.parsers.missav_parser.SessionManager.get_verified_context"
-    ) as mock_get_ctx:
-        mock_get_ctx.return_value = (mock_context, mock_browser)
-
-        parser = MissavParser()
+    with patch.object(parser, '_parse_with_curl', return_value=None):
         with pytest.raises(VideoParseError, match="无法获取视频"):
             parser.parse("https://missav.live/ja/mfcw-008")
 
