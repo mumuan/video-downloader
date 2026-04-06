@@ -52,7 +52,8 @@ class Downloader(QObject):
             self._set_state(DownloadState.ERROR)
             self.error.emit(str(e))
 
-    def _get_cloudflare_cookies(self) -> str | None:
+    @staticmethod
+    def _get_cloudflare_cookies_static() -> str | None:
         """获取 missav Cloudflare cookies 文件路径（供 surrit.com CDN 使用）"""
         try:
             app_data = os.getenv("APPDATA") or os.path.expanduser("~/.config")

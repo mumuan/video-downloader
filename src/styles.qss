@@ -270,3 +270,122 @@ QWidget#status_dot.success { background: #22c55e; }
 QWidget#status_dot.error { background: #ef4444; }
 QWidget#status_dot.downloading { background: #3b82f6; }
 QWidget#status_dot.idle { background: #94a3b8; }
+
+/* Download List Table */
+QTableWidget#download_list {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0;
+    gridline-color: #f1f5f9;
+    border: none;
+}
+
+QTableWidget#download_list::item {
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    padding: 8px 12px;
+    background: #ffffff;
+}
+
+QTableWidget#download_list::item:alternate {
+    background: #fafbfc;
+}
+
+QTableWidget#download_list::item:selected {
+    background: #eff6ff;
+    color: #1e293b;
+}
+
+QTableWidget#download_list:hover::item {
+    background: #f8fafc;
+}
+
+/* Table Header */
+QHeaderView::section {
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 12px;
+    border: none;
+    border-bottom: 2px solid #e2e8f0;
+    border-right: 1px solid #f1f5f9;
+}
+
+QHeaderView::section:first {
+    border-top-left-radius: 12px;
+}
+
+QHeaderView::section:last {
+    border-top-right-radius: 12px;
+    border-right: none;
+}
+
+/* Download Progress Bar in Table */
+QProgressBar#download_progress_bar {
+    border: none;
+    border-radius: 6px;
+    background: #e2e8f0;
+    height: 8px;
+    text-align: center;
+}
+
+QProgressBar#download_progress_bar::chunk {
+    border-radius: 6px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3b82f6, stop:1 #60a5fa);
+}
+
+/* Download Status Label */
+QLabel#download_status_label {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+QLabel#download_size_label {
+    font-size: 12px;
+    color: #64748b;
+    padding: 4px;
+}
+
+/* Download Open Button */
+QPushButton#download_open_btn {
+    background: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+QPushButton#download_open_btn:hover {
+    background: #2563eb;
+}
+
+QPushButton#download_open_btn:pressed {
+    background: #1d4ed8;
+}
+
+/* Download Item Title */
+QTableWidget#download_list QLabel {
+    font-size: 13px;
+    color: #1e293b;
+}
+
+/* Download Name+Progress Widget */
+QLabel#download_item_name {
+    font-size: 13px;
+    color: #1e293b;
+    font-weight: 500;
+}
+
+QLabel#download_item_percent {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+}

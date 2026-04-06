@@ -1,6 +1,8 @@
 # main.py
 import os
 import sys
+import faulthandler
+faulthandler.enable()
 
 from PyQt6.QtWidgets import QApplication
 from src.i18n import init_i18n

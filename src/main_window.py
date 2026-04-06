@@ -1,11 +1,12 @@
 # src/main_window.py
 import os
+import re
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QLabel, QFileDialog, QMessageBox,
     QTabWidget
 )
-from PyQt6.QtCore import QThread, pyqtSlot, Qt
+from PyQt6.QtCore import QThread, pyqtSlot, pyqtSignal, Qt, QObject
 from src.video_parser import VideoParser, InvalidVideoURLError
 from src.downloader import Downloader, DownloadState
 from src.config import Config
@@ -18,18 +19,77 @@ from src.i18n import _
 
 
 class DownloadThread(QThread):
-    def __init__(self, downloader: Downloader, url: str, output_filename: str, direct_url: str | None = None):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+    progress_changed = pyqtSignal(float, str, str)
+
+    def __init__(self, output_dir: str, url: str | None, direct_url: str | None, output_filename: str, cookie_file: str | None = None):
         super().__init__()
-        self.downloader = downloader
+        self.output_dir = output_dir
         self.url = url
-        self.output_filename = output_filename
         self.direct_url = direct_url
+        self.output_filename = output_filename
+        self.cookie_file = cookie_file
 
     def run(self):
-        if self.direct_url:
-            self.downloader.download_direct(self.direct_url, self.output_filename)
-        else:
-            self.downloader.download(self.url, self.output_filename)
+        import yt_dlp
+
+        output_path = os.path.join(self.output_dir, self.output_filename)
+        download_url = self.direct_url if self.direct_url else self.url
+
+        ydl_opts = {
+            'outtmpl': output_path,
+            'quiet': False,
+            'no_warnings': False,
+            'progress_hooks': [self._progress_hook],
+        }
+
+        if self.direct_url and "surrit.com" in self.direct_url:
+            if self.cookie_file:
+                ydl_opts['cookiefile'] = self.cookie_file
+            ydl_opts['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+                'Referer': 'https://missav.ws/',
+            }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([download_url])
+            self.finished.emit(output_path)
+        except Exception as e:
+            self.error.emit(str(e))
+
+    def _parse_progress(self, line: str):
+        # Example: [download] 0.0% of ~   1.23GiB at    252.01B/s ETA --:--:-- (frag 0/886)
+        match = re.search(r'\[download\]\s+([\d.]+)%\s+of ~   ([\d.]+[A-Za-z]+)\s+at\s+([\d.]+[A-Za-z]+/s)', line)
+        if match:
+            percent = float(match.group(1))
+            size_str = match.group(2)
+            speed = match.group(3)
+            self.progress_changed.emit(percent, speed, size_str)
+
+    def _progress_hook(self, d):
+        if d['status'] == 'downloading':
+            total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+            downloaded = d.get('downloaded_bytes', 0)
+            speed = d.get('speed') or 0
+            if total > 0:
+                percent = (downloaded / total) * 100
+                speed_str = self._format_speed(speed)
+                size_str = self._format_size(downloaded, total)
+                self.progress_changed.emit(percent, speed_str, size_str)
+
+    def _format_speed(self, speed):
+        if speed is None:
+            return "0B/s"
+        if speed >= 1024 * 1024:
+            return f"{speed / (1024*1024):.1f}MB/s"
+        return f"{speed / 1024:.1f}KB/s"
+
+    def _format_size(self, downloaded, total):
+        d_mb = downloaded / (1024 * 1024)
+        t_mb = total / (1024 * 1024)
+        return f"{d_mb:.1f}MB / {t_mb:.1f}MB"
 
 
 class MainWindow(QMainWindow):
@@ -56,7 +116,7 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._actor_tab, _("Actor Search"))
         layout.addWidget(self._tabs)
 
-        # Output dir (shared)
+        # Output dir (shared) - at the bottom
         dir_layout = QHBoxLayout()
         self.dir_label = QLabel(f"{_("Output Directory")}: {self.config.output_dir}")
         self.dir_label.setObjectName("dir_label")
@@ -66,8 +126,6 @@ class MainWindow(QMainWindow):
         dir_layout.addWidget(self.dir_label)
         dir_layout.addWidget(self.change_dir_btn)
         layout.addLayout(dir_layout)
-
-        layout.addStretch()
 
         self.url_input.returnPressed.connect(self._on_download_clicked)
 
@@ -91,8 +149,9 @@ class MainWindow(QMainWindow):
         self.info_panel = VideoInfoPanel()
         tab_layout.addWidget(self.info_panel)
 
-        # Download list
+        # Download list with fixed height
         self.download_list = DownloadListWidget()
+        self.download_list.setFixedHeight(200)  # Fixed height for download list
         tab_layout.addWidget(self.download_list)
 
         tab_layout.addStretch()
@@ -160,11 +219,10 @@ class MainWindow(QMainWindow):
             self.download_btn.setEnabled(True)
             return
 
-        self.downloader = Downloader(self.config.output_dir)
-        self.downloader.progress_changed.connect(self._on_progress)
-        self.downloader.state_changed.connect(self._on_state)
-        self.downloader.finished.connect(self._on_finished)
-        self.downloader.error.connect(self._on_error)
+        # Get cookie file for surrit.com CDN if needed
+        cookie_file = None
+        if source_site == "missav" and direct_url and "surrit.com" in direct_url:
+            cookie_file = Downloader._get_cloudflare_cookies_static()
 
         # Add to download list
         item = DownloadItem(
@@ -181,8 +239,11 @@ class MainWindow(QMainWindow):
         self.download_list.add_item(item)
 
         self.download_thread = DownloadThread(
-            self.downloader, url, self.current_video_info.output_filename, direct_url
+            self.config.output_dir, url, direct_url, self.current_video_info.output_filename, cookie_file
         )
+        self.download_thread.progress_changed.connect(self._on_progress)
+        self.download_thread.finished.connect(self._on_finished)
+        self.download_thread.error.connect(self._on_error)
         self.download_thread.start()
 
     @pyqtSlot(float, str, str)
