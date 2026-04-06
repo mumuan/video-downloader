@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QSize
 from typing import Union, Optional
 from PyQt6.QtGui import QIcon
 
+from src.i18n import _
 from src.search_result import SearchResult
 from src.parsers.missav_parser import MissavParser
 from src.parsers.session_manager import VideoParseError
@@ -65,7 +66,7 @@ class SearchWorker(QThread):
         except VideoParseError as e:
             self.error.emit(str(e))
         except Exception as e:
-            self.error.emit(f"搜索失败：{str(e)}")
+            self.error.emit(_(f"Search failed: {str(e)}"))
 
 
 class ActorSearchTab(QWidget):
@@ -115,10 +116,10 @@ class ActorSearchTab(QWidget):
         # --- Search row ---
         search_layout = QHBoxLayout()
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText("输入演员名字...")
+        self._search_input.setPlaceholderText(_("Enter actor name..."))
         self._search_input.returnPressed.connect(self._on_search_clicked)
         self._search_input.textChanged.connect(lambda _: self._update_ui_state())
-        self._search_btn = QPushButton("搜索")
+        self._search_btn = QPushButton(_("Search"))
         self._search_btn.clicked.connect(self._on_search_clicked)
         search_layout.addWidget(self._search_input)
         search_layout.addWidget(self._search_btn)
@@ -132,7 +133,7 @@ class ActorSearchTab(QWidget):
         # --- Results table ---
         self._table = QTableWidget()
         self._table.setColumnCount(4)
-        self._table.setHorizontalHeaderLabels(["", "封面", "标题", "时长"])
+        self._table.setHorizontalHeaderLabels(["", _("Cover"), _("Title"), _("Duration")])
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
@@ -149,11 +150,11 @@ class ActorSearchTab(QWidget):
 
         # --- Pagination ---
         page_layout = QHBoxLayout()
-        self._prev_btn = QPushButton("上一页")
+        self._prev_btn = QPushButton(_("Previous Page"))
         self._prev_btn.clicked.connect(self._on_prev_page)
         self._page_label = QLabel("1 / 1")
         self._page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._next_btn = QPushButton("下一页")
+        self._next_btn = QPushButton(_("Next Page"))
         self._next_btn.clicked.connect(self._on_next_page)
         page_layout.addWidget(self._prev_btn)
         page_layout.addWidget(self._page_label)
@@ -165,14 +166,14 @@ class ActorSearchTab(QWidget):
         self._concurrent_spin = QSpinBox()
         self._concurrent_spin.setRange(1, 5)
         self._concurrent_spin.setValue(self._config.concurrent_downloads)
-        self._concurrent_spin.setPrefix("并发 ")
+        self._concurrent_spin.setPrefix(_("Concurrent "))
         self._concurrent_spin.valueChanged.connect(self._on_concurrent_changed)
-        self._selected_label = QLabel("已选 0 个")
+        self._selected_label = QLabel(_("Selected 0 videos"))
         self._selected_label.setObjectName("selected_label")
-        self._download_btn = QPushButton("下载选中")
+        self._download_btn = QPushButton(_("Download Selected"))
         self._download_btn.setObjectName("download_btn")
         self._download_btn.clicked.connect(self._on_download_clicked)
-        self._select_all_btn = QPushButton("全选")
+        self._select_all_btn = QPushButton(_("Select All"))
         self._select_all_btn.clicked.connect(self._on_select_all)
         controls_layout.addWidget(self._concurrent_spin)
         controls_layout.addWidget(self._selected_label)
@@ -234,13 +235,13 @@ class ActorSearchTab(QWidget):
 
         # Download button text
         if self._download_state == self.DOWNLOAD_EXTRACTING:
-            self._download_btn.setText("正在提取直链...")
+            self._download_btn.setText(_("Extracting links..."))
         elif self._download_state == self.DOWNLOAD_DOWNLOADING:
-            self._download_btn.setText("下载中...")
+            self._download_btn.setText(_("Downloading..."))
         elif self._download_state == self.DOWNLOAD_FINISHED:
-            self._download_btn.setText("下载完成")
+            self._download_btn.setText(_("Download Complete"))
         else:
-            self._download_btn.setText("下载选中")
+            self._download_btn.setText(_("Download Selected"))
 
     def _on_search_clicked(self):
         actor = self._search_input.text().strip()
@@ -254,7 +255,7 @@ class ActorSearchTab(QWidget):
 
     def _do_search(self, actor: str, page: int):
         self._set_search_state(self.SEARCH_SEARCHING)
-        self._results_label.setText("搜索中...")
+        self._results_label.setText(_("Searching..."))
         self._table.setRowCount(0)
 
         self._search_worker = SearchWorker(self._parser, actor, page)
@@ -281,8 +282,8 @@ class ActorSearchTab(QWidget):
     @pyqtSlot(str)
     def _on_search_error(self, error_msg: str):
         self._set_search_state(self.SEARCH_IDLE)
-        self._results_label.setText(f"搜索失败：{error_msg}")
-        QMessageBox.warning(self, "搜索失败", error_msg)
+        self._results_label.setText(_(f"Search failed: {error_msg}"))
+        QMessageBox.warning(self, _("Search Failed"), error_msg)
         self._update_ui_state()
 
     def _display_results(self, results: list[SearchResult]):
@@ -308,9 +309,9 @@ class ActorSearchTab(QWidget):
                     scaled = pixmap.scaled(80, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                     thumb_label.setPixmap(scaled)
                 except Exception:
-                    thumb_label.setText("[无封面]")
+                    thumb_label.setText(_("[No Cover]"))
             else:
-                thumb_label.setText("[无封面]")
+                thumb_label.setText(_("[No Cover]"))
             self._table.setCellWidget(row, 1, thumb_label)
 
             # Title (column 2)
@@ -330,7 +331,7 @@ class ActorSearchTab(QWidget):
                         item.setBackground(Qt.GlobalColor.lightGray)
 
         self._results_label.setText(
-            f"找到 {len(results)} 个视频" if results else "未找到该演员的相关视频"
+            _(f"Found {len(results)} videos") if results else _("No related videos found for this actor")
         )
         self._update_selected_count()
         self._update_ui_state()
@@ -353,7 +354,7 @@ class ActorSearchTab(QWidget):
             self._update_ui_state()
 
     def _update_selected_count(self):
-        self._selected_label.setText(f"已选 {len(self._checked_ids)} 个")
+        self._selected_label.setText(_(f"Selected {len(self._checked_ids)} videos"))
 
     def _on_prev_page(self):
         if self._current_page > 1:
@@ -407,7 +408,7 @@ class ActorSearchTab(QWidget):
         self._batch_progress.setVisible(True)
         self._batch_progress.setValue(0)
         self._item_progress_label.setVisible(True)
-        self._item_progress_label.setText("正在提取直链...")
+        self._item_progress_label.setText(_("Extracting links..."))
         self._update_ui_state()
 
         # Phase 1: Extract direct URLs for all selected videos
@@ -449,7 +450,7 @@ class ActorSearchTab(QWidget):
     def _start_download_phase(self):
         """Phase 2: Start DownloadQueue with extracted VideoInfos."""
         self._set_download_state(self.DOWNLOAD_DOWNLOADING)
-        self._item_progress_label.setText(f"正在下载 {len(self._extract_queue)} 个视频...")
+        self._item_progress_label.setText(_(f"Downloading {len(self._extract_queue)} videos..."))
         self._batch_progress.setValue(50)
         self._update_ui_state()
 
@@ -479,7 +480,7 @@ class ActorSearchTab(QWidget):
             if sr.video_id == video_id:
                 title = sr.title
                 break
-        self._item_progress_label.setText(f"正在下载: {title} ({percent:.0f}%)")
+        self._item_progress_label.setText(_(f"Downloading: {title} ({percent:.0f}%)"))
 
     @pyqtSlot(str)
     def _on_item_finished(self, video_id: str):
@@ -510,16 +511,16 @@ class ActorSearchTab(QWidget):
     def _on_batch_finished(self, success_ids: list, failed_ids: list):
         self._batch_progress.setValue(100)
         self._set_download_state(self.DOWNLOAD_FINISHED)
-        self._item_progress_label.setText("下载完成")
+        self._item_progress_label.setText(_("Download Complete"))
 
         msg = QMessageBox(self)
-        msg.setWindowTitle("批量下载完成")
+        msg.setWindowTitle(_("Batch Download Complete"))
         if not failed_ids:
             msg.setIcon(QMessageBox.Icon.Information)
-            msg.setText(f"成功下载 {len(success_ids)} 个视频")
+            msg.setText(_(f"Successfully downloaded {len(success_ids)} videos"))
         else:
             msg.setIcon(QMessageBox.Icon.Warning)
-            msg.setText(f"成功 {len(success_ids)} 个，失败 {len(failed_ids)} 个")
+            msg.setText(_(f"{len(success_ids)} succeeded, {len(failed_ids)} failed"))
             msg.setDetailedText("\n".join(f"  - {vid}" for vid in failed_ids))
         msg.exec()
 

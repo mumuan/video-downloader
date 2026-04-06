@@ -45,7 +45,7 @@ class TestActorSearchTab:
     def test_selected_count_initially_zero(self, qapp, mock_config, mock_history):
         """Selected count label starts at 0."""
         tab = ActorSearchTab(mock_config, mock_history)
-        assert tab._selected_label.text() == "已选 0 个"
+        assert tab._selected_label.text() == "Selected 0 videos"
 
     def test_concurrent_spin_set_from_config(self, qapp, mock_config, mock_history):
         """Concurrent download spinbox reflects config value."""
@@ -78,7 +78,7 @@ class TestActorSearchTab:
                 title="Test Video",
                 thumbnail="",
                 duration=120,
-                detail_url="https://missav.live/abc-123",
+                detail_url="https://missav.ws/abc-123",
             )
         ]
         tab._display_results(tab._current_results)
@@ -88,7 +88,7 @@ class TestActorSearchTab:
         tab._update_selected_count()
 
         assert "abc-123" in tab._checked_ids
-        assert tab._selected_label.text() == "已选 1 个"
+        assert tab._selected_label.text() == "Selected 1 videos"
 
     def test_checkbox_uncheck_removes_from_checked_ids(self, qapp, mock_config, mock_history):
         """Unchecking a checkbox removes video_id from checked_ids."""
@@ -99,7 +99,7 @@ class TestActorSearchTab:
                 title="Test Video",
                 thumbnail="",
                 duration=120,
-                detail_url="https://missav.live/abc-123",
+                detail_url="https://missav.ws/abc-123",
             )
         ]
         tab._display_results(tab._current_results)
@@ -116,14 +116,14 @@ class TestActorSearchTab:
         tab._update_selected_count()
 
         assert "abc-123" not in tab._checked_ids
-        assert tab._selected_label.text() == "已选 0 个"
+        assert tab._selected_label.text() == "Selected 0 videos"
 
     def test_select_all_checks_all_visible(self, qapp, mock_config, mock_history):
         """Select all button checks all visible items."""
         tab = ActorSearchTab(mock_config, mock_history)
         tab._current_results = [
             SearchResult(video_id=f"v{i}", title=f"Video {i}", thumbnail="",
-                        duration=120, detail_url=f"https://missav.live/v{i}")
+                        duration=120, detail_url=f"https://missav.ws/v{i}")
             for i in range(3)
         ]
         tab._display_results(tab._current_results)
@@ -131,7 +131,7 @@ class TestActorSearchTab:
         tab._on_select_all()
 
         assert tab._checked_ids == {"v0", "v1", "v2"}
-        assert tab._selected_label.text() == "已选 3 个"
+        assert tab._selected_label.text() == "Selected 3 videos"
 
 
 class TestSearchWorker:
@@ -154,7 +154,7 @@ class TestExtractWorker:
         from src.parsers.missav_parser import MissavParser
         sr = SearchResult(
             video_id="x", title="x", thumbnail="",
-            duration=0, detail_url="https://missav.live/x"
+            duration=0, detail_url="https://missav.ws/x"
         )
         worker = _ExtractWorker(sr, MissavParser())
         assert hasattr(worker, "finished")
