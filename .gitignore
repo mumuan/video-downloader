@@ -20,3 +20,5 @@ dist/
 *.mp4
 *.flv
 *.part
+docs/brainstorms/
+docs/plans/
