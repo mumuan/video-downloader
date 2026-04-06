@@ -3,12 +3,16 @@ import os
 import sys
 
 from PyQt6.QtWidgets import QApplication
+from src.i18n import init_i18n
 from src.main_window import MainWindow
 
 
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+
+    # Initialize i18n before creating windows
+    init_i18n()
 
     # 在 PyInstaller 打包模式下，__file__ 为空，使用 _MEIPASS 定位资源
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
