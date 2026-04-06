@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QProgressBar, QLabel, QHBoxLayout
 from PyQt6.QtCore import Qt
+from src.i18n import _
 
 class DownloadProgress(QWidget):
     def __init__(self, parent=None):
@@ -8,7 +9,7 @@ class DownloadProgress(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
-        self.status_label = QLabel("等待下载...")
+        self.status_label = QLabel(_("Waiting for download..."))
         self.status_label.setObjectName("status_label")
         layout.addWidget(self.status_label)
 
@@ -30,27 +31,27 @@ class DownloadProgress(QWidget):
         layout.addLayout(speed_layout)
 
     def set_idle(self):
-        self.status_label.setText("等待下载...")
+        self.status_label.setText(_("Waiting for download..."))
         self.status_label.setStyleSheet("color: #888;")
         self.progress_bar.setValue(0)
         self.speed_label.setText("")
         self.size_label.setText("")
 
     def set_downloading(self, percent: float, speed: str, size: str):
-        self.status_label.setText("下载中...")
+        self.status_label.setText(_("Downloading"))
         self.status_label.setStyleSheet("color: #2196F3;")
         self.progress_bar.setValue(int(percent))
         self.speed_label.setText(speed)
         self.size_label.setText(size)
 
     def set_finished(self):
-        self.status_label.setText("下载完成")
+        self.status_label.setText(_("Download complete"))
         self.status_label.setStyleSheet("color: #4CAF50;")
         self.progress_bar.setValue(100)
         self.speed_label.setText("")
         self.size_label.setText("")
 
     def set_error(self, message: str):
-        self.status_label.setText(f"下载失败：{message}")
+        self.status_label.setText(f"{_("Download failed: ")}{message}")
         self.status_label.setStyleSheet("color: #F44336;")
         self.progress_bar.setValue(0)
