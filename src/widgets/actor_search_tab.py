@@ -483,15 +483,18 @@ class ActorSearchTab(QWidget):
 
     @pyqtSlot(str)
     def _on_item_finished(self, video_id: str):
-        # Find title and add to history
+        # Find title, video_info and add to history
         title = video_id
+        video_info = None
         for sr, vi in self._extract_queue:
             if sr.video_id == video_id:
                 title = sr.title
+                video_info = vi
                 break
         self.download_entry_finished.emit(title, video_id, "missav")
         if self._history_widget:
-            self._history_widget.add_entry(title, video_id, "finished", source_site="missav")
+            file_path = os.path.join(self._config.output_dir, video_info.output_filename) if video_info else ""
+            self._history_widget.add_entry(title, video_id, "finished", source_site="missav", file_path=file_path)
 
     @pyqtSlot(str, str)
     def _on_item_failed(self, video_id: str, error: str):

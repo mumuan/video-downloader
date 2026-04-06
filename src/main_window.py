@@ -185,6 +185,7 @@ class MainWindow(QMainWindow):
             self.current_video_info.bv_id,
             "finished",
             source_site=source_site,
+            file_path=path,
         )
         self.download_btn.setEnabled(True)
 
