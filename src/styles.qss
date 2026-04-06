@@ -353,7 +353,7 @@ QLabel#download_size_label {
 }
 
 /* Download Open Button */
-QPushButton#download_open_btn {
+QPushButton#download_action_btn {
     background: #3b82f6;
     color: #ffffff;
     border: none;
@@ -363,11 +363,11 @@ QPushButton#download_open_btn {
     font-weight: 500;
 }
 
-QPushButton#download_open_btn:hover {
+QPushButton#download_action_btn:hover {
     background: #2563eb;
 }
 
-QPushButton#download_open_btn:pressed {
+QPushButton#download_action_btn:pressed {
     background: #1d4ed8;
 }
 

@@ -28,6 +28,7 @@ class DownloadItem:
     speed: str = ""  # e.g. "1.2MB/s"
     size_str: str = ""  # e.g. "10.5MB / 50.0MB"
     file_path: str | None = None
+    direct_url: str | None = None  # needed for missav resume
     added_at: datetime = field(default_factory=datetime.now)
     error_message: str | None = None
 
@@ -95,12 +96,13 @@ class DownloadListWidget(QWidget):
     文件名+进度 (name+progress), 大小 (size), 操作 (action)
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, action_callback=None):
         super().__init__(parent)
         self._items: dict[str, DownloadItem] = {}
         self._name_progress_widgets: dict[str, _NameProgressWidget] = {}
         self._open_buttons: dict[str, QPushButton] = {}
         self._row_for_id: dict[str, int] = {}  # Track row index for each id
+        self._action_callback = action_callback  # callback(item_id, state) for pause/resume/open
         self._init_ui()
 
     def _init_ui(self):
@@ -126,8 +128,8 @@ class DownloadListWidget(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)   # Size fixed
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)   # Action fixed
 
-        self._table.setColumnWidth(1, 120)  # Size
-        self._table.setColumnWidth(2, 70)   # Action
+        self._table.setColumnWidth(1, 180)  # Size
+        self._table.setColumnWidth(2, 100)   # Action
 
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -184,14 +186,14 @@ class DownloadListWidget(QWidget):
         self._table.setCellWidget(row, 1, size_label)
 
         # Column 2: Action button
-        open_btn = QPushButton(_("打开"))
-        open_btn.setFixedSize(50, 24)
-        open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        open_btn.setObjectName("download_open_btn")
-        open_btn.clicked.connect(lambda: self._open_file(item.file_path) if item.file_path else None)
-        open_btn.setVisible(item.state == "finished" and item.file_path)
-        self._table.setCellWidget(row, 2, open_btn)
-        self._open_buttons[item.id] = open_btn
+        action_btn = QPushButton(self._button_text_for_state(item.state))
+        action_btn.setFixedSize(40, 24)
+        action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        action_btn.setObjectName("download_action_btn")
+        action_btn.clicked.connect(lambda: self._on_action_clicked(item.id) if self._action_callback else None)
+        action_btn.setVisible(item.state != "pending")
+        self._table.setCellWidget(row, 2, action_btn)
+        self._open_buttons[item.id] = action_btn
 
         # Set row height
         self._table.setRowHeight(row, 44)
@@ -216,7 +218,30 @@ class DownloadListWidget(QWidget):
         # Update open button
         if item.id in self._open_buttons:
             open_btn = self._open_buttons[item.id]
-            open_btn.setVisible(item.state == "finished" and item.file_path is not None)
+            open_btn.setText(self._button_text_for_state(item.state))
+            open_btn.setVisible(item.state != "pending")
+
+    def _button_text_for_state(self, state: str) -> str:
+        """Return button text based on item state."""
+        if state == "downloading":
+            return _("暂停")
+        elif state == "paused":
+            return _("继续")
+        elif state == "finished":
+            return _("打开")
+        return ""
+
+    def _on_action_clicked(self, item_id: str) -> None:
+        """Route button click to appropriate action."""
+        item = self._items.get(item_id)
+        if not item:
+            return
+        if item.state == "downloading":
+            self._action_callback(item_id, "pause")
+        elif item.state == "paused":
+            self._action_callback(item_id, "resume")
+        elif item.state == "finished":
+            self._open_file(item.file_path)
 
     def _remove_row(self, id: str) -> None:
         """Remove a row by item id."""

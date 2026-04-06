@@ -21,15 +21,17 @@ from src.i18n import _
 class DownloadThread(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
-    progress_changed = pyqtSignal(float, str, str)
+    progress_changed = pyqtSignal(str, float, str, str)  # item_id, percent, speed, size
 
-    def __init__(self, output_dir: str, url: str | None, direct_url: str | None, output_filename: str, cookie_file: str | None = None):
+    def __init__(self, output_dir: str, url: str | None, direct_url: str | None, output_filename: str, item_id: str, cookie_file: str | None = None, continuedl: bool = True):
         super().__init__()
         self.output_dir = output_dir
         self.url = url
         self.direct_url = direct_url
         self.output_filename = output_filename
+        self.item_id = item_id
         self.cookie_file = cookie_file
+        self.continuedl = continuedl
 
     def run(self):
         import yt_dlp
@@ -42,6 +44,7 @@ class DownloadThread(QThread):
             'quiet': False,
             'no_warnings': False,
             'progress_hooks': [self._progress_hook],
+            'continuedl': self.continuedl,
         }
 
         if self.direct_url and "surrit.com" in self.direct_url:
@@ -77,7 +80,7 @@ class DownloadThread(QThread):
                 percent = (downloaded / total) * 100
                 speed_str = self._format_speed(speed)
                 size_str = self._format_size(downloaded, total)
-                self.progress_changed.emit(percent, speed_str, size_str)
+                self.progress_changed.emit(self.item_id, percent, speed_str, size_str)
 
     def _format_speed(self, speed):
         if speed is None:
@@ -103,6 +106,8 @@ class MainWindow(QMainWindow):
         self.config = Config(app_data)
         self.parser = VideoParser()
         self.current_video_info: VideoInfo | None = None
+        self._active_thread: DownloadThread | None = None
+        self._active_item_id: str | None = None
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -150,7 +155,7 @@ class MainWindow(QMainWindow):
         tab_layout.addWidget(self.info_panel)
 
         # Download list with fixed height
-        self.download_list = DownloadListWidget()
+        self.download_list = DownloadListWidget(action_callback=self._on_action)
         self.download_list.setFixedHeight(200)  # Fixed height for download list
         tab_layout.addWidget(self.download_list)
 
@@ -235,26 +240,27 @@ class MainWindow(QMainWindow):
             speed="",
             size_str="",
             file_path=None,
+            direct_url=direct_url,
         )
         self.download_list.add_item(item)
 
-        self.download_thread = DownloadThread(
-            self.config.output_dir, url, direct_url, self.current_video_info.output_filename, cookie_file
+        self._active_item_id = bv_id
+        self._active_thread = DownloadThread(
+            self.config.output_dir, url, direct_url, self.current_video_info.output_filename, bv_id, cookie_file
         )
-        self.download_thread.progress_changed.connect(self._on_progress)
-        self.download_thread.finished.connect(self._on_finished)
-        self.download_thread.error.connect(self._on_error)
-        self.download_thread.start()
+        self._active_thread.progress_changed.connect(self._on_progress)
+        self._active_thread.finished.connect(self._on_finished)
+        self._active_thread.error.connect(self._on_error)
+        self._active_thread.start()
 
-    @pyqtSlot(float, str, str)
-    def _on_progress(self, percent, speed, size):
-        if self.current_video_info:
-            self.download_list.update_item(
-                self.current_video_info.bv_id,
-                progress=percent,
-                speed=speed,
-                size_str=size,
-            )
+    @pyqtSlot(str, float, str, str)
+    def _on_progress(self, item_id, percent, speed, size):
+        self.download_list.update_item(
+            item_id,
+            progress=percent,
+            speed=speed,
+            size_str=size,
+        )
 
     @pyqtSlot(str)
     def _on_state(self, state):
@@ -262,24 +268,83 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(str)
     def _on_finished(self, path):
-        if self.current_video_info:
+        if self._active_item_id:
             self.download_list.update_item(
-                self.current_video_info.bv_id,
+                self._active_item_id,
                 state="finished",
                 progress=100.0,
                 file_path=path,
             )
+        self._active_thread = None
+        self._active_item_id = None
         self.download_btn.setEnabled(True)
 
     @pyqtSlot(str)
     def _on_error(self, message):
-        if self.current_video_info:
+        if self._active_item_id:
             self.download_list.update_item(
-                self.current_video_info.bv_id,
+                self._active_item_id,
                 state="error",
                 error_message=message,
             )
+        self._active_thread = None
+        self._active_item_id = None
         self.download_btn.setEnabled(True)
+
+    def _on_action(self, item_id: str, action: str) -> None:
+        """Route action button click to pause/resume/open."""
+        if action == "pause":
+            self._on_pause(item_id)
+        elif action == "resume":
+            self._on_resume(item_id)
+
+    def _on_pause(self, item_id: str) -> None:
+        """Pause the active download."""
+        if self._active_thread is None:
+            return
+        self._active_thread.terminate()
+        self._active_thread = None
+        self.download_list.update_item(item_id, state="paused")
+        self._active_item_id = None
+
+    def _on_resume(self, item_id: str) -> None:
+        """Resume a paused download."""
+        item = self.download_list.get_item(item_id)
+        if not item:
+            return
+        # Disconnect old signals if any
+        if self._active_thread:
+            try:
+                self._active_thread.progress_changed.disconnect()
+                self._active_thread.finished.disconnect()
+                self._active_thread.error.disconnect()
+            except Exception:
+                pass
+        # Get cookie file for surrit.com CDN
+        cookie_file = None
+        direct_url = getattr(item, 'direct_url', None)
+        url = None
+        if item.source_site == "missav" and direct_url and "surrit.com" in direct_url:
+            cookie_file = Downloader._get_cloudflare_cookies_static()
+        elif item.source_site == "bilibili":
+            url = f"https://www.bilibili.com/video/{item.id}"
+        elif item.source_site == "youtube":
+            url = f"https://www.youtube.com/watch?v={item.id}"
+        self.download_list.update_item(item_id, state="downloading")
+        self._active_item_id = item_id
+        self._active_thread = DownloadThread(
+            self.config.output_dir,
+            url,
+            direct_url,
+            item.output_filename,
+            item_id,
+            cookie_file=cookie_file,
+            continuedl=True,
+        )
+        self._active_thread.progress_changed.connect(self._on_progress)
+        self._active_thread.finished.connect(self._on_finished)
+        self._active_thread.error.connect(self._on_error)
+        self._active_thread.start()
 
     def closeEvent(self, event):
         """Warn user if a download is in progress."""

@@ -1,14 +1,34 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from src.video_info import VideoInfo
 from src.i18n import _
 import urllib.request
 
+
+class _ThumbnailLoader(QThread):
+    loaded = pyqtSignal(QPixmap)
+
+    def __init__(self, url: str, parent=None):
+        super().__init__(parent)
+        self._url = url
+
+    def run(self):
+        try:
+            with urllib.request.urlopen(self._url, timeout=10) as response:
+                data = response.read()
+            pixmap = QPixmap()
+            if pixmap.loadFromData(data):
+                self.loaded.emit(pixmap)
+        except Exception:
+            pass
+
+
 class VideoInfoPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("video_info_panel")
+        self._thumbnail_loader: _ThumbnailLoader | None = None
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
@@ -62,15 +82,17 @@ class VideoInfoPanel(QWidget):
     def _load_thumbnail(self, url: str):
         if not url:
             self.thumbnail_label.setText(_("No thumbnail"))
+            self.thumbnail_label.setPixmap(QPixmap())
             return
-        try:
-            with urllib.request.urlopen(url, timeout=5) as response:
-                data = response.read()
-            pixmap = QPixmap()
-            if not pixmap.loadFromData(data):
-                self.thumbnail_label.setText(_("Thumbnail load failed"))
-                return
-            scaled = pixmap.scaled(160, 90, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            self.thumbnail_label.setPixmap(scaled)
-        except Exception:
-            self.thumbnail_label.setText(_("Thumbnail load failed"))
+        self.thumbnail_label.setText(_("Loading thumbnail..."))
+        self.thumbnail_label.setPixmap(QPixmap())
+        if self._thumbnail_loader:
+            self._thumbnail_loader.deleteLater()
+            self._thumbnail_loader = None
+        self._thumbnail_loader = _ThumbnailLoader(url, self)
+        self._thumbnail_loader.loaded.connect(self._on_thumbnail_loaded)
+        self._thumbnail_loader.start()
+
+    def _on_thumbnail_loaded(self, pixmap: QPixmap):
+        scaled = pixmap.scaled(160, 90, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        self.thumbnail_label.setPixmap(scaled)
