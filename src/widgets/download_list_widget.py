@@ -23,7 +23,7 @@ class DownloadItem:
     title: str  # display name
     output_filename: str
     source_site: str  # "bilibili", "youtube", "missav"
-    state: str = "pending"  # "pending", "downloading", "finished", "error"
+    state: str = "pending"  # "pending", "downloading", "paused", "finished", "error", "playing"
     progress: float = 0.0  # 0.0 - 100.0
     speed: str = ""  # e.g. "1.2MB/s"
     size_str: str = ""  # e.g. "10.5MB / 50.0MB"
@@ -229,6 +229,8 @@ class DownloadListWidget(QWidget):
             return _("继续")
         elif state == "finished":
             return _("打开")
+        elif state == "playing":
+            return _("停止")
         return ""
 
     def _on_action_clicked(self, item_id: str) -> None:
@@ -242,6 +244,8 @@ class DownloadListWidget(QWidget):
             self._action_callback(item_id, "resume")
         elif item.state == "finished":
             self._open_file(item.file_path)
+        elif item.state == "playing":
+            self._action_callback(item_id, "stop_play")
 
     def _remove_row(self, id: str) -> None:
         """Remove a row by item id."""

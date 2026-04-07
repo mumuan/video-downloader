@@ -25,6 +25,8 @@ hiddenimports = [
     # curl_cffi — Cloudflare bypass
     'curl_cffi',
     'curl_cffi.requests',
+    # VLC — video playback
+    'vlc',
 ]
 
 # --- Data files ---
@@ -49,11 +51,32 @@ try:
 except Exception:
     pass
 
+# --- VLC bundling ---
+vlc_dir = r"C:\Program Files\VideoLAN\VLC"
+if not os.path.isdir(vlc_dir):
+    vlc_dir = os.path.expanduser(r"~\AppData\Local\Programs\VideoLAN\VLC")
+
+vlc_binaries = []
+vlc_datafiles = []
+if os.path.isdir(vlc_dir):
+    # Collect all DLLs from VLC directory
+    import glob
+    for dll in glob.glob(os.path.join(vlc_dir, "*.dll")):
+        vlc_binaries.append((dll, vlc_dir))
+    # Include plugins folder
+    plugins_dir = os.path.join(vlc_dir, "plugins")
+    if os.path.isdir(plugins_dir):
+        vlc_datafiles.append((plugins_dir, "plugins"))
+    # Include lua playlist folder if exists
+    lua_dir = os.path.join(vlc_dir, "lua")
+    if os.path.isdir(lua_dir):
+        vlc_datafiles.append((lua_dir, "lua"))
+
 a = Analysis(
     ['main.py'],
     hiddenimports=hiddenimports,
-    datas=datas,
-    binaries=[],
+    datas=datas + vlc_datafiles,
+    binaries=vlc_binaries,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
