@@ -222,28 +222,35 @@ class PlaywrightSessionManager:
             browser = p.chromium.launch(headless=True, **launch_options)
             context = browser.new_context(storage_state=str(self.state_file))
             page = context.new_page()
-            page.goto(target_url)
-            page.wait_for_timeout(3000)
-            if page.title() not in ("Just a moment...", "请稍候…"):
-                return context, browser, p
+            try:
+                page.goto(target_url, wait_until="domcontentloaded", timeout=90000)
+                page.wait_for_timeout(5000)
+                if page.title() not in ("Just a moment...", "请稍候…"):
+                    return context, browser, p
+            except Exception:
+                pass
             browser.close()
 
-        for attempt in range(3):
+        for attempt in range(5):
             browser = p.chromium.launch(headless=True, **launch_options)
             context = browser.new_context()
             page = context.new_page()
-            page.goto(target_url)
             try:
-                # Wait for page load instead of video element (videos may be hidden)
-                page.wait_for_load_state("networkidle", timeout=30000)
+                # Use domcontentloaded for Cloudflare pages
+                page.goto(target_url, wait_until="domcontentloaded", timeout=90000)
+                # Wait for Cloudflare challenge to resolve
+                page.wait_for_load_state("networkidle", timeout=60000)
                 context.storage_state(path=str(self.state_file))
                 return context, browser, p
             except Exception:
-                if attempt == 2:
+                if attempt == 4:
                     browser.close()
                     raise VideoParseError(_("Cloudflare verification failed, please try again later"))
-                page.wait_for_timeout(3000)
-                browser.close()
+                page.wait_for_timeout(5000)
+                try:
+                    browser.close()
+                except Exception:
+                    pass
                 continue
 
         raise VideoParseError(_("Cloudflare verification timed out, please try again later"))

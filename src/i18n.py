@@ -1,10 +1,17 @@
 import json
 import os
+import sys
 
 from PyQt6.QtCore import QLocale
 
 _translations = {}
 _current_lang = "en"
+
+def _get_base_dir():
+    """Get base directory for resources, supporting PyInstaller frozen mode."""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
 
 def init_i18n():
     """Initialize i18n with system language detection."""
@@ -16,14 +23,13 @@ def init_i18n():
 def _load_translations():
     """Load translation JSON files."""
     global _translations
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = _get_base_dir()
     for lang in ["en", "zh"]:
         path = os.path.join(base_dir, "translations", f"{lang}.json")
         try:
             with open(path, encoding="utf-8") as f:
                 _translations[lang] = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            # Fallback to empty dict, _() will return key as-is
+        except (FileNotFoundError, json.JSONDecodeError):
             _translations[lang] = {}
 
 def _ensure_initialized():

@@ -83,7 +83,14 @@ class MissavParser:
         if resp.status_code != 200:
             return None
 
-        html = resp.text
+        # Use content and decode manually to handle encoding properly
+        raw_content = resp.content
+        # Force Shift-JIS for this site - it always uses Shift-JIS even if meta tag says UTF-8
+        encoding = 'shift_jis'
+        try:
+            html = raw_content.decode(encoding, errors='replace')
+        except (LookupError, UnicodeDecodeError):
+            html = raw_content.decode('utf-8', errors='replace')
         if "cloudflare" in html.lower() or "just a moment" in html.lower():
             return None
 
@@ -126,11 +133,12 @@ class MissavParser:
                     captured_m3u8.append(url)
 
             page.on("request", on_request)
-            page.goto(raw_url)
+            # Use domcontentloaded for Cloudflare pages (load event may never fire)
+            page.goto(raw_url, wait_until="domcontentloaded", timeout=60000)
 
             # Wait for page to load (not for visible video since videos may be hidden)
             try:
-                page.wait_for_load_state("networkidle", timeout=30000)
+                page.wait_for_load_state("networkidle", timeout=45000)
             except Exception:
                 page.wait_for_timeout(5000)  # fallback to just waiting
 
@@ -252,7 +260,7 @@ class MissavParser:
             page.wait_for_timeout(8000)
 
             # Extract video data using JavaScript (Vue.js SPA, no server-side rendered HTML)
-            raw_data = page.evaluate("""() => {
+            raw_data = page.evaluate(r"""() => {
                 var seenIds = {};
                 var results = [];
                 var allAnchors = document.querySelectorAll('a');
