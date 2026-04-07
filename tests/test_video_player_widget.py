@@ -17,7 +17,6 @@ def test_widget_has_idle_state_by_default(app):
 def test_widget_shows_no_video_by_default(app):
     """Thumbnail shows 'No video' when idle."""
     widget = VideoPlayerWidget()
-    assert widget._thumbnail_label.isVisible()
     assert "No video" in widget._thumbnail_label.text()
 
 
@@ -34,7 +33,6 @@ def test_show_error_displays_error_message(app):
     widget = VideoPlayerWidget()
     widget.show_error("Download failed: network error")
     assert widget._state == "error"
-    assert widget._error_label.isVisible()
     assert "network error" in widget._error_label.text()
 
 

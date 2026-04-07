@@ -1,5 +1,5 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider, QStyle
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap
 import vlc
 
@@ -20,8 +20,9 @@ class VideoPlayerWidget(QWidget):
         self._media_player: vlc.MediaPlayer | None = None
         self._current_file: str | None = None
         self._thumbnail_loader = None
-        self._init_vlc()
+        # Initialize UI first (for error label), then VLC
         self._init_ui()
+        self._init_vlc()
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._update_progress)
 
@@ -30,13 +31,6 @@ class VideoPlayerWidget(QWidget):
         try:
             self._vlc_instance = vlc.Instance()
             self._media_player = self._vlc_instance.media_player_new()
-            # Set up event manager for VLC state changes
-            event_manager = self._media_player.event_manager()
-            event_manager.event_attach(vlc.EventType.MediaPlayerPlaying, self._on_vlc_playing)
-            event_manager.event_attach(vlc.EventType.MediaPlayerPaused, self._on_vlc_paused)
-            event_manager.event_attach(vlc.EventType.MediaPlayerStopped, self._on_vlc_stopped)
-            event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_vlc_end_reached)
-            event_manager.event_attach(vlc.EventType.MediaPlayerError, self._on_vlc_error)
         except Exception as e:
             self._state = "error"
             self._show_error_message(_("VLC initialization failed") + f": {str(e)}")
@@ -55,6 +49,7 @@ class VideoPlayerWidget(QWidget):
         self._video_container = QWidget()
         self._video_container.setObjectName("video_container")
         self._video_container.setStyleSheet("background-color: black;")
+        self._video_container.setVisible(True)
         self._video_layout = QVBoxLayout(self._video_container)
         self._video_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -101,8 +96,6 @@ class VideoPlayerWidget(QWidget):
         self._progress_slider.setRange(0, 1000)
         self._progress_slider.setValue(0)
         self._progress_slider.sliderMoved.connect(self._on_sliderMoved)
-        self._progress_slider.sliderPressed.connect(self._on_sliderPressed)
-        self._progress_slider.sliderReleased.connect(self._on_sliderReleased)
         controls_layout.addWidget(self._progress_slider)
 
         # Time label
@@ -138,11 +131,14 @@ class VideoPlayerWidget(QWidget):
     def _show_thumbnail(self, show: bool):
         """Show or hide the thumbnail overlay."""
         self._thumbnail_label.setVisible(show)
+        if show:
+            self._thumbnail_label.raise_()
 
     def _show_error_message(self, message: str):
         """Display error message overlay."""
         self._error_label.setText(message)
         self._error_label.setVisible(True)
+        self._error_label.raise_()
         self._thumbnail_label.setVisible(False)
 
     def _clear_error(self):
@@ -249,22 +245,24 @@ class VideoPlayerWidget(QWidget):
             position = value / 1000.0
             self._media_player.set_position(position)
 
-    def _on_sliderPressed(self):
-        """Handle progress slider press - pause updates while dragging."""
-        pass
-
-    def _on_sliderReleased(self):
-        """Handle progress slider release."""
-        pass
-
     def _on_volumeChanged(self, value: int):
         """Handle volume slider change."""
         self.set_volume(value)
 
     def _update_progress(self):
-        """Update progress slider and time label."""
+        """Update progress slider and time label based on VLC state."""
         if not self._media_player:
             return
+
+        # Check actual VLC state via is_playing()
+        if self._media_player.is_playing():
+            self._state = "playing"
+            self._show_thumbnail(False)
+            self._set_controls_enabled(True)
+            self._play_pause_btn.setText(_("Pause"))
+        elif self._state == "playing" and not self._media_player.is_playing():
+            # Was playing but now stopped
+            pass  # Keep current state, let timer handle it
 
         length = self._media_player.get_length()
         if length > 0:
@@ -289,45 +287,6 @@ class VideoPlayerWidget(QWidget):
         if hours > 0:
             return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
         return f"{minutes:02d}:{seconds:02d}"
-
-    @pyqtSlot()
-    def _on_vlc_playing(self):
-        """Handle VLC playing event."""
-        self._state = "playing"
-        self._show_thumbnail(False)
-        self._set_controls_enabled(True)
-        self._play_pause_btn.setText(_("Pause"))
-
-    @pyqtSlot()
-    def _on_vlc_paused(self):
-        """Handle VLC paused event."""
-        self._state = "paused"
-        self._play_pause_btn.setText(_("Play"))
-
-    @pyqtSlot()
-    def _on_vlc_stopped(self):
-        """Handle VLC stopped event."""
-        self._state = "idle"
-        self._show_thumbnail(True)
-        self._set_controls_enabled(False)
-        self._play_pause_btn.setText(_("Play"))
-        self._progress_slider.setValue(0)
-        self._time_label.setText("00:00 / 00:00")
-        self._update_timer.stop()
-
-    @pyqtSlot()
-    def _on_vlc_end_reached(self):
-        """Handle VLC end reached event."""
-        self._state = "idle"
-        self._show_thumbnail(True)
-        self._play_pause_btn.setText(_("Play"))
-
-    @pyqtSlot()
-    def _on_vlc_error(self):
-        """Handle VLC error event."""
-        self._state = "error"
-        self._show_error_message(_("Playback error occurred"))
-        self._set_controls_enabled(False)
 
     def set_thumbnail(self, pixmap: QPixmap):
         """Set thumbnail image to show when idle."""
