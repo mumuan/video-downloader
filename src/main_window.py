@@ -109,6 +109,7 @@ class MainWindow(QMainWindow):
         self.current_video_info: VideoInfo | None = None
         self._active_thread: DownloadThread | None = None
         self._active_item_id: str | None = None
+        self._player_started_for_item: set = set()  # Track which items have started player
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -246,6 +247,7 @@ class MainWindow(QMainWindow):
         self.download_list.add_item(item)
 
         self._active_item_id = bv_id
+        self._player_started_for_item.discard(bv_id)  # Clear any previous player state
         self._active_thread = DownloadThread(
             self.config.output_dir, url, direct_url, self.current_video_info.output_filename, bv_id, cookie_file
         )
@@ -254,9 +256,8 @@ class MainWindow(QMainWindow):
         self._active_thread.error.connect(self._on_error)
         self._active_thread.start()
 
-        # Auto-start player with the video file
-        self.player_panel.load_file(output_path)
-        self.download_list.update_item(bv_id, state="playing")
+        # Auto-start player when file exists (after download begins)
+        # File will be loaded when first progress is received
 
     @pyqtSlot(str, float, str, str)
     def _on_progress(self, item_id, percent, speed, size):
@@ -266,6 +267,15 @@ class MainWindow(QMainWindow):
             speed=speed,
             size_str=size,
         )
+        # Auto-start player when first progress is received (file now exists)
+        if item_id not in self._player_started_for_item:
+            item = self.download_list.get_item(item_id)
+            if item:
+                file_path = os.path.join(self.config.output_dir, item.output_filename)
+                if os.path.exists(file_path):
+                    self.player_panel.load_file(file_path)
+                    self._player_started_for_item.add(item_id)
+                    self.download_list.update_item(item_id, state="playing")
 
     @pyqtSlot(str)
     def _on_state(self, state):
