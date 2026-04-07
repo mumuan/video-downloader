@@ -271,9 +271,15 @@ class MainWindow(QMainWindow):
         if item_id not in self._player_started_for_item:
             item = self.download_list.get_item(item_id)
             if item:
+                # yt-dlp uses .part extension during download
                 file_path = os.path.join(self.config.output_dir, item.output_filename)
-                if os.path.exists(file_path):
-                    self.player_panel.load_file(file_path)
+                part_path = file_path + ".part"
+                # Prefer .part file if it exists (incomplete download)
+                actual_path = part_path if os.path.exists(part_path) else file_path
+                print(f"[DEBUG] _on_progress: item_id={item_id}, file_path={file_path}, part_exists={os.path.exists(part_path)}, actual_path={actual_path}")
+                if os.path.exists(actual_path):
+                    print(f"[DEBUG] Calling load_file: {actual_path}")
+                    self.player_panel.load_file(actual_path)
                     self._player_started_for_item.add(item_id)
                     self.download_list.update_item(item_id, state="playing")
 
