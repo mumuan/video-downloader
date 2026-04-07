@@ -171,12 +171,23 @@ class VideoPlayerWidget(QWidget):
             self._show_error_message(_("VLC not available"))
             return
 
+        # Normalize path for Windows
+        import os
+        file_path = os.path.normpath(file_path)
+
+        # Check if file exists before trying to play
+        if not os.path.exists(file_path):
+            self._state = "error"
+            self._show_error_message(_("File not found") + f": {os.path.basename(file_path)}")
+            return
+
         self._current_file = file_path
         self._clear_error()
         self._state = "idle"
 
         # Create media and assign to player
-        media = self._vlc_instance.media_new(file_path)
+        # Use local file MRL format for Windows paths
+        media = self._vlc_instance.media_new("file:///" + file_path.replace("\\", "/"))
         self._media_player.set_media(media)
 
         # Set the video output window
