@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider, QSizePolicy
+from PyQt6.QtCore import Qt, QTimer, QSize, QEvent
+from PyQt6.QtGui import QPixmap, QKeyEvent
 import vlc
 
 from src.i18n import _
@@ -10,6 +10,7 @@ class VideoPlayerWidget(QWidget):
     """
     VLC-based video player widget with watch-while-downloading support.
     States: idle, playing, paused, error
+    Supports fullscreen mode.
     """
 
     def __init__(self, parent=None):
@@ -20,6 +21,9 @@ class VideoPlayerWidget(QWidget):
         self._media_player: vlc.MediaPlayer | None = None
         self._current_file: str | None = None
         self._thumbnail_loader = None
+        self._is_fullscreen = False
+        self._fullscreen_window: QWidget | None = None
+        self._saved_geometry: QSize | None = None
         # Initialize UI first (for error label), then VLC
         self._init_ui()
         self._init_vlc()
@@ -45,11 +49,13 @@ class VideoPlayerWidget(QWidget):
         self._title_label.setObjectName("player_title")
         layout.addWidget(self._title_label)
 
-        # Video surface container
+        # Video surface container with 16:9 aspect ratio
         self._video_container = QWidget()
         self._video_container.setObjectName("video_container")
         self._video_container.setStyleSheet("background-color: black;")
         self._video_container.setVisible(True)
+        # Set size policy to respect aspect ratio
+        self._video_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._video_layout = QVBoxLayout(self._video_container)
         self._video_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -58,6 +64,7 @@ class VideoPlayerWidget(QWidget):
         self._thumbnail_label.setObjectName("player_thumbnail")
         self._thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._thumbnail_label.setStyleSheet("background-color: #1a1a2e; color: #888;")
+        self._thumbnail_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._video_layout.addWidget(self._thumbnail_label)
 
         # Error label (shown when error)
@@ -117,6 +124,13 @@ class VideoPlayerWidget(QWidget):
         self._volume_slider.sliderMoved.connect(self._on_volumeChanged)
         controls_layout.addWidget(self._volume_slider)
 
+        # Fullscreen button
+        self._fullscreen_btn = QPushButton(_("Fullscreen"))
+        self._fullscreen_btn.setObjectName("player_fullscreen_btn")
+        self._fullscreen_btn.setFixedSize(80, 28)
+        self._fullscreen_btn.clicked.connect(self._toggle_fullscreen)
+        controls_layout.addWidget(self._fullscreen_btn)
+
         controls_layout.addStretch()
 
         layout.addWidget(self._controls_widget)
@@ -126,7 +140,8 @@ class VideoPlayerWidget(QWidget):
         """Set the video output window for VLC."""
         if self._media_player is not None:
             # On Windows, use set_hwnd to embed in QWidget
-            self._media_player.set_hwnd(self._video_container.winId())
+            target_widget = self._fullscreen_window if self._is_fullscreen else self._video_container
+            self._media_player.set_hwnd(target_widget.winId())
 
     def _show_thumbnail(self, show: bool):
         """Show or hide the thumbnail overlay."""
@@ -151,6 +166,105 @@ class VideoPlayerWidget(QWidget):
         self._stop_btn.setEnabled(enabled)
         self._progress_slider.setEnabled(enabled)
         self._volume_slider.setEnabled(enabled)
+
+    def _toggle_fullscreen(self):
+        """Toggle fullscreen mode."""
+        if self._is_fullscreen:
+            self._exit_fullscreen()
+        else:
+            self._enter_fullscreen()
+
+    def _enter_fullscreen(self):
+        """Enter fullscreen mode."""
+        if self._is_fullscreen:
+            return
+        self._is_fullscreen = True
+
+        # Create fullscreen window
+        self._fullscreen_window = QWidget()
+        self._fullscreen_window.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self._fullscreen_window.setStyleSheet("background-color: black;")
+        self._fullscreen_window.setGeometry(self._video_container.geometry())
+
+        # Move video surface to fullscreen window
+        self._video_container.setParent(self._fullscreen_window)
+        self._video_container.setGeometry(0, 0, self._fullscreen_window.width(), self._fullscreen_window.height())
+        self._video_container.show()
+        self._thumbnail_label.setGeometry(0, 0, self._fullscreen_window.width(), self._fullscreen_window.height())
+        self._error_label.setGeometry(0, 0, self._fullscreen_window.width(), self._fullscreen_window.height())
+
+        # Re-attach VLC to fullscreen window
+        if self._media_player and self._current_file:
+            self._set_video_surface()
+
+        self._fullscreen_window.showFullScreen()
+        self._fullscreen_window.installEventFilter(self)
+
+        # Hide controls in fullscreen (they'll be shown on mouse move)
+        self._controls_widget.hide()
+
+    def _exit_fullscreen(self):
+        """Exit fullscreen mode."""
+        if not self._is_fullscreen:
+            return
+        self._is_fullscreen = False
+
+        if self._fullscreen_window:
+            self._fullscreen_window.removeEventFilter(self)
+            # Move video surface back
+            self._video_container.setParent(self)
+            self._video_container.setGeometry(0, 0, 640, 360)
+            self._video_container.show()
+            self._thumbnail_label.setGeometry(0, 0, 640, 360)
+            self._error_label.setGeometry(0, 0, 640, 360)
+
+            # Re-attach VLC
+            if self._media_player and self._current_file:
+                self._set_video_surface()
+
+            self._fullscreen_window.close()
+            self._fullscreen_window.deleteLater()
+            self._fullscreen_window = None
+
+        self._controls_widget.show()
+
+    def eventFilter(self, obj, event):
+        """Handle events for fullscreen window."""
+        if obj == self._fullscreen_window:
+            if event.type() == QEvent.Type.KeyPress:
+                key_event = QKeyEvent(event)
+                if key_event.key() == Qt.Key.Key_Escape:
+                    self._exit_fullscreen()
+                    return True
+                elif key_event.key() == Qt.Key.Key_Space:
+                    self._on_play_pause_clicked()
+                    return True
+            elif event.type() == QEvent.Type.MouseMove:
+                # Show controls on mouse move
+                self._controls_widget.show()
+                return True
+            elif event.type() == QEvent.Type.MouseButtonPress:
+                # Toggle controls visibility on click
+                if self._controls_widget.isVisible():
+                    self._controls_widget.hide()
+                else:
+                    self._controls_widget.show()
+                return True
+        return super().eventFilter(obj, event)
+
+    def resizeEvent(self, event):
+        """Handle resize to maintain aspect ratio."""
+        super().resizeEvent(event)
+        # Update video container size to maintain 16:9
+        if not self._is_fullscreen:
+            width = self._video_container.width()
+            height = int(width * 9 / 16)
+            max_height = self._video_container.maximumHeight()
+            if height > max_height and max_height > 0:
+                height = max_height
+            self._video_container.setFixedHeight(height)
+            self._thumbnail_label.setFixedSize(self._video_container.size())
+            self._error_label.setFixedSize(self._video_container.size())
 
     def set_video_info(self, title: str, bv_id: str):
         """Set the video title and ID to display above player."""

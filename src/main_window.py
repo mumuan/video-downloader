@@ -99,7 +99,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("xhub")
-        self.setMinimumSize(700, 600)
+        self.setMinimumSize(900, 700)
+        self.resize(1100, 800)
 
         app_data = os.path.join(os.path.expanduser("~"), ".bilibili-downloader")
         os.makedirs(app_data, exist_ok=True)
