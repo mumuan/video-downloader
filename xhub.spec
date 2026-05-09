@@ -20,24 +20,27 @@ def collect_directory(source_dir, dest_root):
 
 
 hiddenimports = [
-    "PyQt6",
-    "PyQt6.QtCore",
-    "PyQt6.QtGui",
-    "PyQt6.QtWidgets",
-    "PyQt6.sip",
-    "yt_dlp",
-    "yt_dlp.YoutubeDL",
-    "yt_dlp.utils",
-    "yt_dlp.options",
-    "yt_dlp.extractor.generic",
-    "yt_dlp.extractor.bilibili",
-    "yt_dlp.extractor.youtube",
-    "curl_cffi",
-    "curl_cffi.requests",
-    "vlc",
-    "playwright",
-    "playwright.sync_api",
-    "playwright_stealth",
+    # PyQt6 — only modules actually used by the app
+    'PyQt6',
+    'PyQt6.QtCore',
+    'PyQt6.QtGui',
+    'PyQt6.QtWidgets',
+    'PyQt6.sip',
+    # yt-dlp — only bilibili extractor is used
+    'yt_dlp',
+    'yt_dlp.YoutubeDL',
+    'yt_dlp.utils',
+    'yt_dlp.options',
+    'yt_dlp.extractor.bilibili',
+    'brotli',
+    'certifi',
+    'mutagen',
+    'websockets',
+    # curl_cffi — Cloudflare bypass
+    'curl_cffi',
+    'curl_cffi.requests',
+    # VLC — video playback
+    'vlc',
 ]
 
 datas = []
@@ -70,10 +73,31 @@ if os.path.isdir(vlc_dir):
     vlc_datas += collect_directory(os.path.join(vlc_dir, "plugins"), "plugins")
     vlc_datas += collect_directory(os.path.join(vlc_dir, "lua"), "lua")
 
+# --- VLC bundling ---
+vlc_dir = r"C:\Program Files\VideoLAN\VLC"
+if not os.path.isdir(vlc_dir):
+    vlc_dir = os.path.expanduser(r"~\AppData\Local\Programs\VideoLAN\VLC")
+
+vlc_binaries = []
+vlc_datafiles = []
+if os.path.isdir(vlc_dir):
+    # Collect all DLLs from VLC directory
+    import glob
+    for dll in glob.glob(os.path.join(vlc_dir, "*.dll")):
+        vlc_binaries.append((dll, vlc_dir))
+    # Include plugins folder
+    plugins_dir = os.path.join(vlc_dir, "plugins")
+    if os.path.isdir(plugins_dir):
+        vlc_datafiles.append((plugins_dir, "plugins"))
+    # Include lua playlist folder if exists
+    lua_dir = os.path.join(vlc_dir, "lua")
+    if os.path.isdir(lua_dir):
+        vlc_datafiles.append((lua_dir, "lua"))
+
 a = Analysis(
     ["main.py"],
     hiddenimports=hiddenimports,
-    datas=datas + vlc_datas,
+    datas=datas + vlc_datafiles,
     binaries=vlc_binaries,
     win_no_prefer_redirects=False,
     win_private_assemblies=False,

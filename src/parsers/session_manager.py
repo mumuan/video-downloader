@@ -227,30 +227,34 @@ class PlaywrightSessionManager:
             page = context.new_page()
             try:
                 page.goto(target_url, wait_until="domcontentloaded", timeout=90000)
-                page.wait_for_timeout(3000)
-                if "just a moment" not in page.title().lower():
+                page.wait_for_timeout(5000)
+                if page.title() not in ("Just a moment...", "请稍候…"):
                     return context, browser, p
             except Exception:
                 pass
             browser.close()
 
         for attempt in range(5):
-            browser = p.chromium.launch(**launch_options)
+            browser = p.chromium.launch(headless=True, **launch_options)
             context = browser.new_context()
             page = context.new_page()
             try:
+                # Use domcontentloaded for Cloudflare pages
                 page.goto(target_url, wait_until="domcontentloaded", timeout=90000)
-                try:
-                    page.wait_for_load_state("networkidle", timeout=60000)
-                except Exception:
-                    page.wait_for_timeout(5000)
+                # Wait for Cloudflare challenge to resolve
+                page.wait_for_load_state("networkidle", timeout=60000)
                 context.storage_state(path=str(self.state_file))
                 return context, browser, p
             except Exception:
-                browser.close()
                 if attempt == 4:
+                    browser.close()
                     raise VideoParseError(_("Cloudflare verification failed, please try again later"))
-                time.sleep(2)
+                page.wait_for_timeout(5000)
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+                continue
 
         raise VideoParseError(_("Cloudflare verification timed out, please try again later"))
 

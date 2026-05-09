@@ -24,11 +24,11 @@ class DownloadItem:
     id: str
     title: str
     output_filename: str
-    source_site: str
-    state: str = "pending"
-    progress: float = 0.0
-    speed: str = ""
-    size_str: str = ""
+    source_site: str  # "bilibili", "youtube", "missav"
+    state: str = "pending"  # "pending", "downloading", "paused", "finished", "error", "playing"
+    progress: float = 0.0  # 0.0 - 100.0
+    speed: str = ""  # e.g. "1.2MB/s"
+    size_str: str = ""  # e.g. "10.5MB / 50.0MB"
     file_path: str | None = None
     direct_url: str | None = None
     is_playing: bool = False
@@ -322,10 +322,63 @@ class DownloadListWidget(QWidget):
         if isinstance(size_widget, QLabel):
             size_widget.setText(item.size_str)
 
-        action_widget = self._action_widgets.get(item.id)
-        if action_widget is not None:
-            action_widget.bind_item(item)
+        # Update open button
+        if item.id in self._open_buttons:
+            open_btn = self._open_buttons[item.id]
+            open_btn.setText(self._button_text_for_state(item.state))
+            open_btn.setVisible(item.state != "pending")
 
-    def setFixedHeight(self, height: int):
+    def _button_text_for_state(self, state: str) -> str:
+        """Return button text based on item state."""
+        if state == "downloading":
+            return _("暂停")
+        elif state == "paused":
+            return _("继续")
+        elif state == "finished":
+            return _("打开")
+        elif state == "playing":
+            return _("停止")
+        return ""
+
+    def _on_action_clicked(self, item_id: str) -> None:
+        """Route button click to appropriate action."""
+        item = self._items.get(item_id)
+        if not item:
+            return
+        if item.state == "downloading":
+            self._action_callback(item_id, "pause")
+        elif item.state == "paused":
+            self._action_callback(item_id, "resume")
+        elif item.state == "finished":
+            self._open_file(item.file_path)
+        elif item.state == "playing":
+            self._action_callback(item_id, "stop_play")
+
+    def _remove_row(self, id: str) -> None:
+        """Remove a row by item id."""
+        row = self._find_row_by_id(id)
+        if row >= 0:
+            self._table.removeRow(row)
+            self._name_progress_widgets.pop(id, None)
+            self._open_buttons.pop(id, None)
+            self._row_for_id.pop(id, None)
+            # Update row indices for ids that shifted
+            for remaining_id, old_row in list(self._row_for_id.items()):
+                if old_row > row:
+                    self._row_for_id[remaining_id] = old_row - 1
+
+    def _open_file(self, file_path: str | None) -> None:
+        """Open the downloaded file."""
+        if file_path and os.path.exists(file_path):
+            file_path = os.path.normpath(file_path)
+            if os.name == 'nt':  # Windows
+                os.startfile(file_path)
+            elif os.name == 'posix':  # macOS / Linux
+                subprocess.run(
+                    ["open", file_path] if sys.platform == "darwin" else ["xdg-open", file_path]
+                )
+
+    def setFixedHeight(self, height: int) -> None:
+        """Override to set table height."""
         super().setFixedHeight(height)
         self._table.setFixedHeight(height)

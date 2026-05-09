@@ -20,7 +20,9 @@ from src.config import Config
 from src.downloader import Downloader
 from src.i18n import _
 from src.video_info import VideoInfo
-from src.video_parser import InvalidVideoURLError, VideoParser
+from src.widgets.video_player_widget import VideoPlayerWidget
+from src.widgets.download_list_widget import DownloadListWidget, DownloadItem
+from src.widgets.file_exists_dialog import FileExistsDialog
 from src.widgets.actor_search_tab import ActorSearchTab
 from src.widgets.download_list_widget import DownloadItem, DownloadListWidget
 from src.widgets.file_exists_dialog import FileExistsDialog
@@ -184,8 +186,7 @@ class MainWindow(QMainWindow):
         self._parse_thread: ParseVideoThread | None = None
         self._active_thread: DownloadThread | None = None
         self._active_item_id: str | None = None
-        self._current_playing_item_id: str | None = None
-        self._player_started_for_item: set[str] = set()
+        self._player_started_for_item: set = set()  # Track which items have started player
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -224,11 +225,7 @@ class MainWindow(QMainWindow):
         input_layout.addWidget(self.download_btn)
         tab_layout.addLayout(input_layout)
 
-        self.status_label = QLabel("")
-        self.status_label.setObjectName("status_label")
-        self.status_label.hide()
-        tab_layout.addWidget(self.status_label)
-
+        # Video player panel (with thumbnail and playback controls)
         self.player_panel = VideoPlayerWidget()
         tab_layout.addWidget(self.player_panel)
 
@@ -312,29 +309,16 @@ class MainWindow(QMainWindow):
         self.current_video_info = None
         self._set_busy_state(True, "Resolving video information...", "Resolving...")
 
-        self._parse_thread = ParseVideoThread(raw)
-        self._parse_thread.parsed.connect(self._on_parse_success)
-        self._parse_thread.error.connect(self._on_parse_error)
-        self._parse_thread.finished.connect(self._on_parse_thread_finished)
-        self._parse_thread.start()
-
-    @pyqtSlot(object)
-    def _on_parse_success(self, video_info: VideoInfo):
-        self.current_video_info = video_info
-        self.player_panel.set_video_info(video_info.title, video_info.bv_id)
-        self.status_label.setText("Starting download...")
-        self._start_download()
-
-    @pyqtSlot(str)
-    def _on_parse_error(self, message: str):
-        QMessageBox.warning(self, _("Parse failed"), message)
-        self._set_busy_state(False)
-
-    @pyqtSlot()
-    def _on_parse_thread_finished(self):
-        if self._parse_thread is not None:
-            self._parse_thread.deleteLater()
-            self._parse_thread = None
+        try:
+            self.current_video_info = self.parser.parse(raw)
+            self.player_panel.set_video_info(self.current_video_info.title, self.current_video_info.bv_id)
+            self._start_download()
+        except InvalidVideoURLError as e:
+            QMessageBox.warning(self, _("Parse failed"), str(e))
+            self.download_btn.setEnabled(True)
+        except Exception as e:
+            QMessageBox.warning(self, _("Error"), f"{_("An error occurred during parsing")}: {str(e)}")
+            self.download_btn.setEnabled(True)
 
     def _start_download(self):
         if not self.current_video_info:
@@ -379,8 +363,8 @@ class MainWindow(QMainWindow):
         )
         self.download_list.add_item(item)
 
-        self._active_item_id = item.id
-        self._player_started_for_item.discard(item.id)
+        self._active_item_id = bv_id
+        self._player_started_for_item.discard(bv_id)  # Clear any previous player state
         self._active_thread = DownloadThread(
             self.config.output_dir,
             url,
@@ -396,7 +380,8 @@ class MainWindow(QMainWindow):
         self._active_thread.finished.connect(self._on_download_thread_finished)
         self._active_thread.start()
 
-        self._set_busy_state(True, "Download started", "Downloading...")
+        # Auto-start player when file exists (after download begins)
+        # File will be loaded when first progress is received
 
     @pyqtSlot(str, float, str, str)
     def _on_progress(self, item_id: str, percent: float, speed: str, size: str):
@@ -406,7 +391,21 @@ class MainWindow(QMainWindow):
             speed=speed,
             size_str=size,
         )
-        self._try_start_preview(item_id)
+        # Auto-start player when first progress is received (file now exists)
+        if item_id not in self._player_started_for_item:
+            item = self.download_list.get_item(item_id)
+            if item:
+                # yt-dlp uses .part extension during download
+                file_path = os.path.join(self.config.output_dir, item.output_filename)
+                part_path = file_path + ".part"
+                # Prefer .part file if it exists (incomplete download)
+                actual_path = part_path if os.path.exists(part_path) else file_path
+                print(f"[DEBUG] _on_progress: item_id={item_id}, file_path={file_path}, part_exists={os.path.exists(part_path)}, actual_path={actual_path}")
+                if os.path.exists(actual_path):
+                    print(f"[DEBUG] Calling load_file: {actual_path}")
+                    self.player_panel.load_file(actual_path)
+                    self._player_started_for_item.add(item_id)
+                    self.download_list.update_item(item_id, state="playing")
 
     @pyqtSlot(str)
     def _on_finished(self, path: str):
@@ -451,21 +450,15 @@ class MainWindow(QMainWindow):
                 error_message=message,
                 is_playing=False,
             )
-            self._clear_current_playing_item(self._active_item_id)
         self.player_panel.show_error(message)
-        self.status_label.setText(message)
-
-    @pyqtSlot()
-    def _on_download_thread_finished(self):
-        if self._active_thread is not None:
-            self._active_thread.deleteLater()
-            self._active_thread = None
+        self._active_thread = None
         self._active_item_id = None
         self.download_btn.setEnabled(True)
         self.url_input.setEnabled(True)
         self.download_btn.setText(_("Download"))
 
     def _on_action(self, item_id: str, action: str) -> None:
+        """Route action button click to pause/resume/open/play/stop_play."""
         if action == "pause":
             self._on_pause(item_id)
         elif action == "resume":
@@ -543,6 +536,24 @@ class MainWindow(QMainWindow):
         self.download_list.update_item(item_id, is_playing=False)
         if self._current_playing_item_id == item_id:
             self._current_playing_item_id = None
+
+    def _on_play(self, item_id: str) -> None:
+        """Play a video file (for finished items or switching playback)."""
+        item = self.download_list.get_item(item_id)
+        if not item:
+            return
+        file_path = os.path.join(self.config.output_dir, item.output_filename)
+        if os.path.exists(file_path):
+            self.player_panel.load_file(file_path)
+            self.player_panel.set_video_info(item.title, item.id)
+            self.download_list.update_item(item_id, state="playing")
+
+    def _on_stop_play(self, item_id: str) -> None:
+        """Stop video playback but keep download running."""
+        self.player_panel.stop()
+        # If this is the active download, set state back to downloading
+        if self._active_item_id == item_id:
+            self.download_list.update_item(item_id, state="downloading")
 
     def closeEvent(self, event):
         download_in_progress = (
