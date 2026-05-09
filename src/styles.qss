@@ -178,6 +178,12 @@ QLabel#size_label {
     color: #64748b;
 }
 
+QLabel#status_label {
+    font-size: 12px;
+    color: #475569;
+    padding: 0 2px 4px 2px;
+}
+
 /* Download History */
 QWidget#download_history {
     background: #ffffff;
@@ -352,6 +358,40 @@ QLabel#download_size_label {
     padding: 4px;
 }
 
+QLabel#download_status_badge {
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #e2e8f0;
+    color: #475569;
+}
+
+QLabel#download_status_badge[status="downloading"] {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+QLabel#download_status_badge[status="paused"] {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+QLabel#download_status_badge[status="finished"] {
+    background: #dcfce7;
+    color: #166534;
+}
+
+QLabel#download_status_badge[status="error"] {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+QLabel#download_status_meta {
+    font-size: 11px;
+    color: #64748b;
+}
+
 /* Download Open Button */
 QPushButton#download_action_btn {
     background: #3b82f6;
@@ -369,6 +409,22 @@ QPushButton#download_action_btn:hover {
 
 QPushButton#download_action_btn:pressed {
     background: #1d4ed8;
+}
+
+QPushButton#download_preview_btn {
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+QPushButton#download_preview_btn:hover {
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    background: #f8fbff;
 }
 
 /* Download Item Title */

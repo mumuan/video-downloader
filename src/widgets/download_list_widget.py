@@ -3,24 +3,26 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
 
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem,
-    QHBoxLayout, QLabel, QPushButton, QProgressBar, QHeaderView,
-    QAbstractItemView
+    QAbstractItemView,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QTableWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QColor
-
-from src.i18n import _
 
 
 @dataclass
 class DownloadItem:
-    """Represents a single download item in the list."""
-    id: str  # unique key (bv_id or video_id)
-    title: str  # display name
+    id: str
+    title: str
     output_filename: str
     source_site: str  # "bilibili", "youtube", "missav"
     state: str = "pending"  # "pending", "downloading", "paused", "finished", "error", "playing"
@@ -28,14 +30,13 @@ class DownloadItem:
     speed: str = ""  # e.g. "1.2MB/s"
     size_str: str = ""  # e.g. "10.5MB / 50.0MB"
     file_path: str | None = None
-    direct_url: str | None = None  # needed for missav resume
+    direct_url: str | None = None
+    is_playing: bool = False
     added_at: datetime = field(default_factory=datetime.now)
     error_message: str | None = None
 
 
 class _NameProgressWidget(QWidget):
-    """Combined widget showing name, percentage and progress bar."""
-
     def __init__(self, title: str, progress: float = 0.0, parent=None):
         super().__init__(parent)
         self._title = title
@@ -45,64 +46,189 @@ class _NameProgressWidget(QWidget):
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(2)
+        layout.setSpacing(4)
 
-        # Top row: name + percentage
         top_layout = QHBoxLayout()
         top_layout.setSpacing(8)
 
         self._name_label = QLabel(self._title)
         self._name_label.setObjectName("download_item_name")
         self._name_label.setToolTip(self._title)
-        self._name_label.setStyleSheet("color: #1e293b;")
-        self._name_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self._name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         top_layout.addWidget(self._name_label, stretch=1)
 
         self._percent_label = QLabel("0%")
         self._percent_label.setObjectName("download_item_percent")
         self._percent_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._percent_label.setFixedWidth(40)
-        self._percent_label.setStyleSheet("color: #64748b;")
+        self._percent_label.setFixedWidth(42)
         top_layout.addWidget(self._percent_label)
 
         layout.addLayout(top_layout)
 
-        # Bottom: progress bar
         self._progress_bar = QProgressBar()
+        self._progress_bar.setObjectName("download_progress_bar")
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(int(self._progress))
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setFixedHeight(6)
-        self._progress_bar.setObjectName("download_progress_bar")
+        self._progress_bar.setFixedHeight(8)
         layout.addWidget(self._progress_bar)
 
-    def set_progress(self, progress: float) -> None:
+    def set_progress(self, progress: float):
         self._progress = progress
         self._percent_label.setText(f"{int(progress)}%")
-        self._progress_bar.setValue(int(progress))
+        self._progress_bar.setValue(max(0, min(100, int(progress))))
 
-    def set_title(self, title: str) -> None:
+    def set_title(self, title: str):
         self._title = title
         self._name_label.setText(title)
         self._name_label.setToolTip(title)
 
     def sizeHint(self) -> QSize:
-        return QSize(200, 44)
+        return QSize(220, 48)
+
+
+class _StatusWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+
+        self._status_label = QLabel()
+        self._status_label.setObjectName("download_status_badge")
+        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._status_label)
+
+        self._meta_label = QLabel()
+        self._meta_label.setObjectName("download_status_meta")
+        self._meta_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._meta_label)
+
+    def update_from_item(self, item: DownloadItem):
+        self._status_label.setText(self._status_text(item))
+        self._status_label.setProperty("status", item.state)
+        self._status_label.style().unpolish(self._status_label)
+        self._status_label.style().polish(self._status_label)
+        self._meta_label.setText(self._meta_text(item))
+
+    @staticmethod
+    def _status_text(item: DownloadItem) -> str:
+        mapping = {
+            "pending": "Pending",
+            "downloading": "Downloading",
+            "paused": "Paused",
+            "finished": "Finished",
+            "error": "Error",
+        }
+        base = mapping.get(item.state, item.state.title())
+        if item.is_playing:
+            return f"{base} · Preview"
+        return base
+
+    @staticmethod
+    def _meta_text(item: DownloadItem) -> str:
+        if item.state == "error" and item.error_message:
+            return item.error_message
+        if item.speed:
+            return item.speed
+        if item.state == "finished":
+            return "Ready"
+        if item.state == "paused":
+            return "Can resume"
+        return "Waiting"
+
+
+class _ActionWidget(QWidget):
+    def __init__(self, item_id: str, callback, parent=None):
+        super().__init__(parent)
+        self._item_id = item_id
+        self._callback = callback
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self._main_btn = QPushButton()
+        self._main_btn.setObjectName("download_action_btn")
+        self._main_btn.setFixedHeight(28)
+        self._main_btn.clicked.connect(self._on_main_clicked)
+        layout.addWidget(self._main_btn)
+
+        self._preview_btn = QPushButton()
+        self._preview_btn.setObjectName("download_preview_btn")
+        self._preview_btn.setFixedHeight(28)
+        self._preview_btn.clicked.connect(self._on_preview_clicked)
+        layout.addWidget(self._preview_btn)
+
+        self._item: DownloadItem | None = None
+
+    def bind_item(self, item: DownloadItem):
+        self._item = item
+
+        main_text = ""
+        preview_text = "Preview"
+
+        if item.state == "downloading":
+            main_text = "Pause"
+        elif item.state == "paused":
+            main_text = "Resume"
+        elif item.state == "finished":
+            main_text = "Open"
+
+        can_preview = (
+            item.state in {"downloading", "paused", "finished"}
+            or bool(item.file_path)
+        )
+        if item.is_playing:
+            preview_text = "Stop"
+
+        self._main_btn.setText(main_text)
+        self._main_btn.setVisible(bool(main_text))
+        self._preview_btn.setText(preview_text)
+        self._preview_btn.setVisible(can_preview)
+
+    def _on_main_clicked(self):
+        if self._item is None or self._callback is None:
+            return
+
+        if self._item.state == "downloading":
+            self._callback(self._item_id, "pause")
+        elif self._item.state == "paused":
+            self._callback(self._item_id, "resume")
+        elif self._item.state == "finished":
+            self._open_file(self._item.file_path)
+
+    def _on_preview_clicked(self):
+        if self._item is None or self._callback is None:
+            return
+        if self._item.is_playing:
+            self._callback(self._item_id, "stop_play")
+        else:
+            self._callback(self._item_id, "play")
+
+    @staticmethod
+    def _open_file(file_path: str | None):
+        if file_path is None or not os.path.exists(file_path):
+            return
+
+        file_path = os.path.normpath(file_path)
+        if os.name == "nt":
+            os.startfile(file_path)
+        elif os.name == "posix":
+            subprocess.run(
+                ["open", file_path] if sys.platform == "darwin" else ["xdg-open", file_path]
+            )
 
 
 class DownloadListWidget(QWidget):
-    """
-    Table-style download list widget with columns:
-    文件名+进度 (name+progress), 大小 (size), 操作 (action)
-    """
-
     def __init__(self, parent=None, action_callback=None):
         super().__init__(parent)
         self._items: dict[str, DownloadItem] = {}
         self._name_progress_widgets: dict[str, _NameProgressWidget] = {}
-        self._open_buttons: dict[str, QPushButton] = {}
-        self._row_for_id: dict[str, int] = {}  # Track row index for each id
-        self._action_callback = action_callback  # callback(item_id, state) for pause/resume/open
+        self._status_widgets: dict[str, _StatusWidget] = {}
+        self._action_widgets: dict[str, _ActionWidget] = {}
+        self._row_for_id: dict[str, int] = {}
+        self._action_callback = action_callback
         self._init_ui()
 
     def _init_ui(self):
@@ -110,108 +236,89 @@ class DownloadListWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Create table - 3 columns: Name+Progress, Size, Action
         self._table = QTableWidget()
         self._table.setObjectName("download_list")
-        self._table.setColumnCount(3)
-        self._table.setHorizontalHeaderLabels([
-            _("文件名"), _("大小"), _("操作")
-        ])
-
-        # Enable alternating row colors
+        self._table.setColumnCount(4)
+        self._table.setHorizontalHeaderLabels(["Video", "Status", "Size", "Actions"])
         self._table.setAlternatingRowColors(True)
-
-        # Header styling
-        header = self._table.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # Name+Progress stretches
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)   # Size fixed
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)   # Action fixed
-
-        self._table.setColumnWidth(1, 180)  # Size
-        self._table.setColumnWidth(2, 100)   # Action
-
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._table.setShowGrid(False)
 
+        header = self._table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self._table.setColumnWidth(1, 160)
+        self._table.setColumnWidth(2, 170)
+        self._table.setColumnWidth(3, 210)
+
         layout.addWidget(self._table)
 
-    def add_item(self, item: DownloadItem) -> None:
-        """Add a new download item to the list."""
+    def add_item(self, item: DownloadItem):
         self._items[item.id] = item
         self._insert_row(item)
 
-    def update_item(self, id: str, **kwargs) -> None:
-        """Update an existing download item with new values."""
-        if id not in self._items:
+    def update_item(self, item_id: str, **kwargs):
+        item = self._items.get(item_id)
+        if item is None:
             return
-        item = self._items[id]
         for key, value in kwargs.items():
             if hasattr(item, key):
                 setattr(item, key, value)
         self._update_row(item)
 
-    def remove_item(self, id: str) -> None:
-        """Remove a download item from the list."""
-        if id in self._items:
-            del self._items[id]
-            self._remove_row(id)
+    def get_item(self, item_id: str) -> DownloadItem | None:
+        return self._items.get(item_id)
 
-    def get_item(self, id: str) -> DownloadItem | None:
-        """Get a download item by id."""
-        return self._items.get(id)
+    def _find_row_by_id(self, item_id: str) -> int:
+        return self._row_for_id.get(item_id, -1)
 
-    def _find_row_by_id(self, id: str) -> int:
-        """Find the row index for a given item id."""
-        return self._row_for_id.get(id, -1)
-
-    def _insert_row(self, item: DownloadItem) -> None:
-        """Insert a new row for the item."""
+    def _insert_row(self, item: DownloadItem):
         row = self._table.rowCount()
         self._table.insertRow(row)
         self._row_for_id[item.id] = row
 
-        # Column 0: Name+Progress (as widget)
-        name_progress_widget = _NameProgressWidget(item.title, item.progress)
-        self._table.setCellWidget(row, 0, name_progress_widget)
-        self._name_progress_widgets[item.id] = name_progress_widget
+        name_widget = _NameProgressWidget(item.title, item.progress)
+        self._table.setCellWidget(row, 0, name_widget)
+        self._name_progress_widgets[item.id] = name_widget
 
-        # Column 1: Size
+        status_widget = _StatusWidget()
+        status_widget.update_from_item(item)
+        self._table.setCellWidget(row, 1, status_widget)
+        self._status_widgets[item.id] = status_widget
+
         size_label = QLabel(item.size_str)
         size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         size_label.setObjectName("download_size_label")
-        self._table.setCellWidget(row, 1, size_label)
+        self._table.setCellWidget(row, 2, size_label)
 
-        # Column 2: Action button
-        action_btn = QPushButton(self._button_text_for_state(item.state))
-        action_btn.setFixedSize(40, 24)
-        action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        action_btn.setObjectName("download_action_btn")
-        action_btn.clicked.connect(lambda: self._on_action_clicked(item.id) if self._action_callback else None)
-        action_btn.setVisible(item.state != "pending")
-        self._table.setCellWidget(row, 2, action_btn)
-        self._open_buttons[item.id] = action_btn
+        action_widget = _ActionWidget(item.id, self._action_callback)
+        action_widget.bind_item(item)
+        self._table.setCellWidget(row, 3, action_widget)
+        self._action_widgets[item.id] = action_widget
 
-        # Set row height
-        self._table.setRowHeight(row, 44)
+        self._table.setRowHeight(row, 56)
 
-    def _update_row(self, item: DownloadItem) -> None:
-        """Update an existing row with new values."""
+    def _update_row(self, item: DownloadItem):
         row = self._find_row_by_id(item.id)
         if row < 0:
             return
 
-        # Update name+progress widget
-        if item.id in self._name_progress_widgets:
-            widget = self._name_progress_widgets[item.id]
-            widget.set_title(item.title)
-            widget.set_progress(item.progress)
+        name_widget = self._name_progress_widgets.get(item.id)
+        if name_widget is not None:
+            name_widget.set_title(item.title)
+            name_widget.set_progress(item.progress)
 
-        # Update size
-        size_widget = self._table.cellWidget(row, 1)
+        status_widget = self._status_widgets.get(item.id)
+        if status_widget is not None:
+            status_widget.update_from_item(item)
+
+        size_widget = self._table.cellWidget(row, 2)
         if isinstance(size_widget, QLabel):
             size_widget.setText(item.size_str)
 

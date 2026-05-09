@@ -1,34 +1,35 @@
 @echo off
-REM xhub Windows Build Script
-REM Run this script ONLY on Windows (PyInstaller + NSIS have no cross-platform build capability)
-REM Prerequisites: Python 3.10+, NSIS installed and in PATH
+setlocal
 
-echo [1/4] Installing Python dependencies...
+echo [1/5] Installing Python dependencies...
 pip install -r requirements.txt
+if errorlevel 1 exit /b 1
 
-echo [2/4] Installing Playwright Chromium browser...
-REM PLAYWRIGHT_BROWSERS_PATH=0 forces download to a deterministic location we can bundle
-set PLAYWRIGHT_BROWSERS_PATH=0
-python -m playwright install chromium --with-deps
+echo [2/5] Preparing Playwright browser bundle...
+set "PLAYWRIGHT_BROWSERS_PATH=%CD%\.playwright-browsers"
+if not exist "%PLAYWRIGHT_BROWSERS_PATH%" mkdir "%PLAYWRIGHT_BROWSERS_PATH%"
+python -m playwright install chromium
+if errorlevel 1 exit /b 1
 
-echo [3/4] Building with PyInstaller...
-pyinstaller xhub.spec
+echo [3/5] Cleaning previous build artifacts...
+if exist build rmdir /s /q build
+if exist dist rmdir /s /q dist
 
-echo [4/4] Building NSIS installer...
-REM Note: NSIS (makensis) must be installed and in PATH
+echo [4/5] Building with PyInstaller...
+pyinstaller --clean xhub.spec
+if errorlevel 1 exit /b 1
+
+echo [5/5] Building NSIS installer...
 where makensis >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] NSIS not found. Please install NSIS and add it to PATH.
-    echo Download: https://nsis.sourceforge.io/Download
+if errorlevel 1 (
+    echo [ERROR] NSIS not found. Install NSIS and add it to PATH.
     exit /b 1
 )
 makensis xhub-installer.nsi
+if errorlevel 1 exit /b 1
 
 echo.
-echo === Build complete ===
+echo Build complete
 echo   Executable: dist\xhub.exe
-echo   Installer:   xhub-installer.exe
-echo.
-echo NOTE: If running for the first time, Windows SmartScreen may block the unsigned executable.
-echo       Click 'More info' and then 'Run anyway' to proceed.
-pause
+echo   Installer: xhub-installer.exe
+endlocal
