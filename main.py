@@ -24,6 +24,15 @@ def main():
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
+    if getattr(sys, "frozen", False):
+        os.environ["PATH"] = base_dir + os.pathsep + os.environ.get("PATH", "")
+        vlc_plugin_path = os.path.join(base_dir, "plugins")
+        if os.path.isdir(vlc_plugin_path):
+            os.environ["VLC_PLUGIN_PATH"] = vlc_plugin_path
+        playwright_browsers_path = os.path.join(base_dir, "ms-playwright")
+        if os.path.isdir(playwright_browsers_path):
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = playwright_browsers_path
+
     # Load stylesheet
     style_path = os.path.join(base_dir, "styles.qss")
     if not os.path.exists(style_path):
