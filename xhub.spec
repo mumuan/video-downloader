@@ -53,6 +53,7 @@ datas += copy_metadata("curl_cffi")
 datas += copy_metadata("playwright")
 
 spec_dir = os.path.dirname(os.path.abspath(SPEC))
+build_workpath = os.path.join(spec_dir, "build", "pyinstaller")
 src_dir = os.path.join(spec_dir, "src")
 datas.append((os.path.join(src_dir, "translations", "en.json"), "translations"))
 datas.append((os.path.join(src_dir, "translations", "zh.json"), "translations"))
@@ -102,6 +103,7 @@ a = Analysis(
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
+    workpath=build_workpath,
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)

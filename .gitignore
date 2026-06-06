@@ -15,10 +15,15 @@ Thumbs.db
 build/
 dist/
 *.exe
+.playwright-browsers/
+.runtime/
 
 # Downloaded files
 *.mp4
 *.flv
 *.part
+*.ytdl
+tmp_test_download/
+tmp_test_output/
 docs/brainstorms/
 docs/plans/

@@ -2,6 +2,7 @@ import importlib
 import importlib.util
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -90,6 +91,41 @@ def _is_playwright_python_installed() -> bool:
     return site_packages is not None and (site_packages / "playwright").exists()
 
 
+def _path_has_non_ascii(path: Path) -> bool:
+    try:
+        str(path).encode("ascii")
+        return False
+    except UnicodeEncodeError:
+        return True
+
+
+def _get_safe_playwright_driver_dir() -> Path:
+    base = Path(os.environ.get("PROGRAMDATA", "C:/ProgramData"))
+    return base / "xhub-playwright-driver"
+
+
+def _ensure_safe_playwright_driver():
+    """Use an ASCII-only Playwright driver path on Windows."""
+    if sys.platform != "win32":
+        return
+
+    _ensure_playwright_importable()
+    playwright_pkg = importlib.import_module("playwright")
+    driver_dir = Path(playwright_pkg.__file__).resolve().parent / "driver"
+    if not _path_has_non_ascii(driver_dir):
+        return
+
+    safe_driver_dir = _get_safe_playwright_driver_dir()
+    safe_node = safe_driver_dir / "node.exe"
+    safe_cli = safe_driver_dir / "package" / "cli.js"
+    if not safe_node.exists() or not safe_cli.exists():
+        safe_driver_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(driver_dir, safe_driver_dir, dirs_exist_ok=True)
+
+    driver_module = importlib.import_module("playwright._impl._driver")
+    driver_module.compute_driver_executable = lambda: (str(safe_node), str(safe_cli))
+
+
 class CurlSessionManager:
     def __init__(self):
         app_data = os.getenv("APPDATA") or os.path.expanduser("~/.config")
@@ -172,6 +208,10 @@ class CurlSessionManager:
 
 
 class PlaywrightSessionManager:
+    MAX_BROWSER_ATTEMPTS = 2
+    PAGE_GOTO_TIMEOUT_MS = 30000
+    NETWORK_IDLE_TIMEOUT_MS = 10000
+
     def __init__(self):
         app_data = os.getenv("APPDATA") or os.path.expanduser("~/.config")
         self.cookie_dir = Path(app_data) / "missav-downloader" / "cookies"
@@ -197,6 +237,20 @@ class PlaywrightSessionManager:
                     return True
         return False
 
+    def _new_context(self, browser, storage_state: str | None = None):
+        kwargs = {
+            "user_agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "viewport": {"width": 1920, "height": 1080},
+            "locale": "en-US",
+        }
+        if storage_state:
+            kwargs["storage_state"] = storage_state
+        return browser.new_context(**kwargs)
+
     def get_browser(self, target_url: str):
         import asyncio
 
@@ -207,10 +261,18 @@ class PlaywrightSessionManager:
             os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(browsers_path)
 
         _ensure_playwright_importable()
+        _ensure_safe_playwright_driver()
         playwright = importlib.import_module("playwright.sync_api")
         p = playwright.sync_playwright().start()
 
-        launch_options = {"headless": True}
+        launch_options = {
+            "headless": True,
+            "args": [
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+            ],
+        }
         chromium_path = self._find_chromium_executable(browsers_path)
         if chromium_path is not None:
             launch_options["executable_path"] = str(chromium_path)
@@ -223,38 +285,52 @@ class PlaywrightSessionManager:
 
         if self.is_cookie_valid():
             browser = p.chromium.launch(**launch_options)
-            context = browser.new_context(storage_state=str(self.state_file))
+            context = self._new_context(browser, storage_state=str(self.state_file))
             page = context.new_page()
             try:
-                page.goto(target_url, wait_until="domcontentloaded", timeout=90000)
-                page.wait_for_timeout(5000)
-                if page.title() not in ("Just a moment...", "请稍候…"):
+                page.goto(
+                    target_url,
+                    wait_until="domcontentloaded",
+                    timeout=self.PAGE_GOTO_TIMEOUT_MS,
+                )
+                page.wait_for_timeout(3000)
+                if "just a moment" not in page.title().lower():
                     return context, browser, p
             except Exception:
                 pass
             browser.close()
 
-        for attempt in range(5):
-            browser = p.chromium.launch(headless=True, **launch_options)
-            context = browser.new_context()
+        for attempt in range(self.MAX_BROWSER_ATTEMPTS):
+            browser = p.chromium.launch(**launch_options)
+            context = self._new_context(browser)
             page = context.new_page()
             try:
-                # Use domcontentloaded for Cloudflare pages
-                page.goto(target_url, wait_until="domcontentloaded", timeout=90000)
-                # Wait for Cloudflare challenge to resolve
-                page.wait_for_load_state("networkidle", timeout=60000)
+                page.goto(
+                    target_url,
+                    wait_until="domcontentloaded",
+                    timeout=self.PAGE_GOTO_TIMEOUT_MS,
+                )
+                try:
+                    page.wait_for_load_state(
+                        "networkidle",
+                        timeout=self.NETWORK_IDLE_TIMEOUT_MS,
+                    )
+                except Exception:
+                    page.wait_for_timeout(3000)
+                title = page.title().lower()
+                if "just a moment" in title or "cloudflare" in title:
+                    browser.close()
+                    if attempt == self.MAX_BROWSER_ATTEMPTS - 1:
+                        raise VideoParseError(_("Cloudflare verification failed, please try again later"))
+                    time.sleep(2)
+                    continue
                 context.storage_state(path=str(self.state_file))
                 return context, browser, p
             except Exception:
-                if attempt == 4:
-                    browser.close()
+                browser.close()
+                if attempt == self.MAX_BROWSER_ATTEMPTS - 1:
                     raise VideoParseError(_("Cloudflare verification failed, please try again later"))
-                page.wait_for_timeout(5000)
-                try:
-                    browser.close()
-                except Exception:
-                    pass
-                continue
+                time.sleep(2)
 
         raise VideoParseError(_("Cloudflare verification timed out, please try again later"))
 

@@ -256,8 +256,39 @@ class MissavParser:
 
         try:
             page = context.new_page()
+
+            # First visit homepage to establish session
+            page.goto("https://missav.ws", timeout=60000)
+
+            # Wait for Cloudflare to pass on homepage
+            max_wait = 90  # 90 seconds for homepage
+            waited = 0
+            while waited < max_wait:
+                page.wait_for_timeout(3000)
+                waited += 3
+
+                title = page.title().lower()
+                if "just a moment" not in title and "cloudflare" not in title:
+                    break
+
+                if waited >= max_wait:
+                    raise VideoParseError("Cloudflare 验证超时，请稍后重试")
+
+            # Additional wait after passing Cloudflare
+            page.wait_for_timeout(5000)
+
+            # Then navigate to search
             page.goto(search_url, timeout=60000)
             page.wait_for_timeout(8000)
+
+            # Check if search page needs Cloudflare again
+            title = page.title().lower()
+            if "just a moment" in title or "cloudflare" in title:
+                # Wait more for search page
+                page.wait_for_timeout(20000)
+                title = page.title().lower()
+                if "just a moment" in title:
+                    raise VideoParseError("搜索页面 Cloudflare 验证超时，请稍后重试")
 
             # Extract video data using JavaScript (Vue.js SPA, no server-side rendered HTML)
             raw_data = page.evaluate(r"""() => {
@@ -271,7 +302,7 @@ class MissavParser:
 
                     // Match video detail URLs: /XXX-YYY or /XXX-YYY-uncensored-leak
                     // Exclude known non-video paths: /ms/, /makers, /dm, /vip, /actresses, /genres, /search, etc.
-                    var match = href.match(/https:\\/\\/missav\\.live\\/(?!ms\\/|makers|dm\\d|actresses|genres|vip|search|chinese|uncensored)([a-zA-Z0-9]+-\\d+(?:-[a-z]+-leak)?)(?:\\/|\\?|$)/);
+                    var match = href.match(/https:\/\/missav\.ws\/(?!ms\/|makers|dm\d|actresses|genres|vip|search|chinese|uncensored)([a-zA-Z0-9]+-\d+(?:-[a-z]+-leak)?)(?:\/|\?|$)/);
                     if (!match) continue;
 
                     var videoId = match[1].toLowerCase();

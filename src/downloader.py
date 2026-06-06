@@ -4,6 +4,7 @@ import os
 import tempfile
 
 import yt_dlp
+from yt_dlp import utils as yt_utils
 from PyQt6.QtCore import QObject, pyqtSignal
 
 
@@ -12,6 +13,10 @@ class DownloadState(enum.Enum):
     DOWNLOADING = "downloading"
     FINISHED = "finished"
     ERROR = "error"
+
+
+class DownloadPaused(Exception):
+    """Raised when a download is intentionally paused by the user."""
 
 
 class Downloader(QObject):
@@ -25,6 +30,7 @@ class Downloader(QObject):
         self.output_dir = output_dir
         self._state = DownloadState.IDLE
         self._cookie_file: str | None = None
+        self._pause_checker = None
 
     @property
     def state(self) -> DownloadState:
@@ -35,27 +41,119 @@ class Downloader(QObject):
         self.state_changed.emit(state.value)
 
     def download(self, url: str, output_filename: str):
-        self._set_state(DownloadState.DOWNLOADING)
+        try:
+            path = self.download_media(url=url, output_filename=output_filename)
+            self.finished.emit(path)
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+    def _build_ydl_options(
+        self,
+        output_filename: str,
+        *,
+        direct_url: str | None = None,
+        cookie_file: str | None = None,
+        continuedl: bool = True,
+        quiet: bool = False,
+        no_warnings: bool = False,
+        retries: int | None = None,
+        fragment_retries: int | None = None,
+        concurrent_fragment_downloads: int | None = None,
+    ) -> dict:
         ydl_opts = {
             "outtmpl": os.path.join(self.output_dir, output_filename),
-            "format": (
-                "bestvideo[ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/"
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
-                "best[ext=mp4]/best"
-            ),
-            "merge_output_format": "mp4",
-            "quiet": False,
-            "no_warnings": False,
+            "quiet": quiet,
+            "no_warnings": no_warnings,
             "progress_hooks": [self._progress_hook],
+            "continuedl": continuedl,
         }
+
+        if direct_url is None:
+            ydl_opts.update(
+                {
+                    "format": (
+                        "bestvideo[ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/"
+                        "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+                        "best[ext=mp4]/best"
+                    ),
+                    "merge_output_format": "mp4",
+                }
+            )
+
+        if retries is not None:
+            ydl_opts["retries"] = retries
+        if fragment_retries is not None:
+            ydl_opts["fragment_retries"] = fragment_retries
+        if concurrent_fragment_downloads is not None:
+            ydl_opts["concurrent_fragment_downloads"] = concurrent_fragment_downloads
+
+        if direct_url and ("m3u8" in direct_url or "master" in direct_url):
+            ydl_opts["hls_use_mpegts"] = True
+
+        if direct_url and "surrit.com" in direct_url:
+            if cookie_file:
+                ydl_opts["cookiefile"] = cookie_file
+            ydl_opts["http_headers"] = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/140.0.0.0 Safari/537.36"
+                ),
+                "Referer": "https://missav.ws/",
+            }
+
+        return ydl_opts
+
+    def download_media(
+        self,
+        *,
+        url: str | None = None,
+        direct_url: str | None = None,
+        output_filename: str,
+        cookie_file: str | None = None,
+        continuedl: bool = True,
+        quiet: bool = False,
+        no_warnings: bool = False,
+        retries: int | None = None,
+        fragment_retries: int | None = None,
+        concurrent_fragment_downloads: int | None = None,
+        pause_checker=None,
+    ) -> str:
+        download_url = direct_url or url
+        if not download_url:
+            raise ValueError("No download URL provided")
+
+        self._pause_checker = pause_checker
+        self._set_state(DownloadState.DOWNLOADING)
+        ydl_opts = self._build_ydl_options(
+            output_filename,
+            direct_url=direct_url,
+            cookie_file=cookie_file,
+            continuedl=continuedl,
+            quiet=quiet,
+            no_warnings=no_warnings,
+            retries=retries,
+            fragment_retries=fragment_retries,
+            concurrent_fragment_downloads=concurrent_fragment_downloads,
+        )
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            self._set_state(DownloadState.FINISHED)
-            self.finished.emit(os.path.join(self.output_dir, output_filename))
-        except Exception as exc:
+                ydl.download([download_url])
+        except yt_utils.DownloadCancelled as exc:
+            if pause_checker and pause_checker():
+                self._set_state(DownloadState.IDLE)
+                raise DownloadPaused(str(exc)) from exc
             self._set_state(DownloadState.ERROR)
-            self.error.emit(str(exc))
+            raise
+        except Exception:
+            self._set_state(DownloadState.ERROR)
+            raise
+        finally:
+            self._pause_checker = None
+
+        self._set_state(DownloadState.FINISHED)
+        return os.path.join(self.output_dir, output_filename)
 
     @staticmethod
     def _get_cloudflare_cookies_static() -> str | None:
@@ -96,38 +194,19 @@ class Downloader(QObject):
             return None
 
     def download_direct(self, direct_url: str, output_filename: str):
-        self._set_state(DownloadState.DOWNLOADING)
-
-        ydl_opts = {
-            "outtmpl": os.path.join(self.output_dir, output_filename),
-            "quiet": False,
-            "no_warnings": False,
-            "progress_hooks": [self._progress_hook],
-        }
-
+        cookie_file = None
         if "surrit.com" in direct_url:
-            self._cookie_file = self._get_cloudflare_cookies_static()
-            if self._cookie_file:
-                ydl_opts["cookiefile"] = self._cookie_file
-            ydl_opts["http_headers"] = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/140.0.0.0 Safari/537.36"
-                ),
-                "Referer": "https://missav.ws/",
-            }
-
-        if "m3u8" in direct_url or "master" in direct_url:
-            ydl_opts["hls_use_mpegts"] = True
+            cookie_file = self._get_cloudflare_cookies_static()
+            self._cookie_file = cookie_file
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([direct_url])
-            self._set_state(DownloadState.FINISHED)
-            self.finished.emit(os.path.join(self.output_dir, output_filename))
+            path = self.download_media(
+                direct_url=direct_url,
+                output_filename=output_filename,
+                cookie_file=cookie_file,
+            )
+            self.finished.emit(path)
         except Exception as exc:
-            self._set_state(DownloadState.ERROR)
             self.error.emit(str(exc))
         finally:
             if self._cookie_file:
@@ -138,6 +217,9 @@ class Downloader(QObject):
                 self._cookie_file = None
 
     def _progress_hook(self, data):
+        if self._pause_checker and self._pause_checker():
+            raise yt_utils.DownloadCancelled("Download paused")
+
         if data["status"] != "downloading":
             return
         total = data.get("total_bytes") or data.get("total_bytes_estimate", 0)

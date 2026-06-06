@@ -1,6 +1,7 @@
 # src/widgets/actor_search_tab.py
 import os
-from typing import Literal
+import time
+from urllib.request import urlopen
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
@@ -9,8 +10,7 @@ from PyQt6.QtWidgets import (
     QStyleOptionButton, QStyle, QApplication
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QSize
-from typing import Union, Optional
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QPixmap
 
 from src.i18n import _
 from src.widgets.download_list_widget import DownloadItem
@@ -70,6 +70,26 @@ class SearchWorker(QThread):
             self.error.emit(_(f"Search failed: {str(e)}"))
 
 
+class ThumbnailWorker(QThread):
+    """Fetch a thumbnail without blocking the UI thread."""
+
+    finished = pyqtSignal(int, str, bytes)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, row: int, video_id: str, url: str):
+        super().__init__()
+        self._row = row
+        self._video_id = video_id
+        self._url = url
+
+    def run(self):
+        try:
+            data = urlopen(self._url, timeout=5).read()
+            self.finished.emit(self._row, self._video_id, data)
+        except Exception:
+            self.failed.emit(self._row, self._video_id)
+
+
 class ActorSearchTab(QWidget):
     """
     Actor search and batch download Tab.
@@ -88,13 +108,15 @@ class ActorSearchTab(QWidget):
     DOWNLOAD_DOWNLOADING = "downloading"
     DOWNLOAD_FINISHED = "finished"
 
-    def __init__(self, config: Config, download_list, parent=None):
+    def __init__(self, config: Config, download_list, history=None, parent=None):
         super().__init__(parent)
         self._config = config
         self._download_list = download_list
+        self._history = history
         self._parser = MissavParser()
         self._search_worker: SearchWorker | None = None
         self._download_queue: DownloadQueue | None = None
+        self._thumbnail_workers: dict[str, ThumbnailWorker] = {}
 
         # State
         self._search_state = self.SEARCH_IDLE
@@ -113,6 +135,20 @@ class ActorSearchTab(QWidget):
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
+
+        # Warning banner
+        warning_label = QLabel(
+            "⚠️ 提示：由于 Cloudflare 防护，搜索功能可能较慢或失败。\n"
+            "替代方案：直接在 missav.ws 网站搜索，然后复制视频链接到「视频下载」标签下载。"
+        )
+        warning_label.setText(
+            _("Search may be slow or fail because the site uses Cloudflare protection.")
+            + "\n"
+            + _("You can also search on missav.ws and paste a video link in the Video Download tab.")
+        )
+        warning_label.setWordWrap(True)
+        warning_label.setStyleSheet("background-color: #fff3cd; padding: 10px; border-radius: 5px; color: #856404;")
+        layout.addWidget(warning_label)
 
         # --- Search row ---
         search_layout = QHBoxLayout()
@@ -198,8 +234,10 @@ class ActorSearchTab(QWidget):
 
     def _load_downloaded_ids(self):
         """Load already-downloaded video IDs from history for skip detection."""
-        # Will be populated from history widget if available
-        pass
+        if self._history:
+            self._downloaded_ids = self._history.get_downloaded_ids()
+        else:
+            self._downloaded_ids = set()
 
     def _set_search_state(self, state: str):
         self._search_state = state
@@ -283,8 +321,24 @@ class ActorSearchTab(QWidget):
     @pyqtSlot(str)
     def _on_search_error(self, error_msg: str):
         self._set_search_state(self.SEARCH_IDLE)
-        self._results_label.setText(_(f"Search failed: {error_msg}"))
-        QMessageBox.warning(self, _("Search Failed"), error_msg)
+
+        # 友好的错误提示
+        if "Cloudflare" in error_msg or "验证" in error_msg or "超时" in error_msg:
+            friendly_msg = (
+                "搜索失败：无法绕过 Cloudflare 防护\n\n"
+                "推荐的替代方案：\n"
+                "1. 直接访问 missav.ws 网站\n"
+                "2. 在网站上搜索演员或视频\n"
+                "3. 复制视频链接\n"
+                "4. 在本应用的「视频下载」标签粘贴链接下载\n\n"
+                "这样可以绕过搜索限制，直接下载视频。"
+            )
+            self._results_label.setText("搜索失败 - 请使用替代方案")
+            QMessageBox.information(self, "搜索失败", friendly_msg)
+        else:
+            self._results_label.setText(_(f"Search failed: {error_msg}"))
+            QMessageBox.warning(self, _("Search Failed"), error_msg)
+
         self._update_ui_state()
 
     def _display_results(self, results: list[SearchResult]):
@@ -455,11 +509,11 @@ class ActorSearchTab(QWidget):
         self._batch_progress.setValue(50)
         self._update_ui_state()
 
-        # Add items to download list
+        # Add items to download list and history
         for sr, vi in self._extract_queue:
             if self._download_list:
                 item = DownloadItem(
-                    id=vi.video_id,
+                    id=vi.bv_id,
                     title=sr.title,
                     output_filename=vi.output_filename,
                     source_site="missav",
@@ -468,8 +522,19 @@ class ActorSearchTab(QWidget):
                     speed="",
                     size_str="",
                     file_path=None,
+                    direct_url=vi.direct_url,
                 )
                 self._download_list.add_item(item)
+
+                # Save to history
+                if self._history:
+                    self._history.add_record(
+                        item,
+                        url=None,
+                        direct_url=vi.direct_url,
+                        duration=sr.duration,
+                        thumbnail=sr.thumbnail
+                    )
 
         video_infos = [vi for _, vi in self._extract_queue]
         self._download_queue = DownloadQueue(
@@ -500,6 +565,9 @@ class ActorSearchTab(QWidget):
         self._item_progress_label.setText(_(f"Downloading: {title} ({percent:.0f}%)"))
         if self._download_list:
             self._download_list.update_item(video_id, progress=percent)
+        # Update history
+        if self._history:
+            self._history.update_record(video_id, progress=percent)
 
     @pyqtSlot(str)
     def _on_item_finished(self, video_id: str):
@@ -520,6 +588,16 @@ class ActorSearchTab(QWidget):
                 progress=100.0,
                 file_path=file_path,
             )
+        # Update history
+        if self._history and video_info:
+            file_path = os.path.join(self._config.output_dir, video_info.output_filename)
+            self._history.update_record(
+                video_id,
+                state="finished",
+                progress=100.0,
+                file_path=file_path,
+                finished_at=int(time.time())
+            )
 
     @pyqtSlot(str, str)
     def _on_item_failed(self, video_id: str, error: str):
@@ -533,6 +611,13 @@ class ActorSearchTab(QWidget):
                 video_id,
                 state="error",
                 error_message=error,
+            )
+        # Update history
+        if self._history:
+            self._history.update_record(
+                video_id,
+                state="error",
+                error_message=error
             )
 
     @pyqtSlot(list, list)

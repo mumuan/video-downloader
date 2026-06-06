@@ -5,13 +5,22 @@ from pathlib import Path
 
 import pytest
 
-from src.parsers.session_manager import CurlSessionManager, VideoParseError
+from src.parsers.session_manager import (
+    CurlSessionManager,
+    VideoParseError,
+    _path_has_non_ascii,
+)
 
 
 def test_session_manager_init():
     sm = CurlSessionManager()
     assert sm.cookie_dir.name == "cookies"
     assert sm.cookie_file.name == "cookies.json"
+
+
+def test_path_has_non_ascii_detects_unicode():
+    assert _path_has_non_ascii(Path("C:/Users/成一一")) is True
+    assert _path_has_non_ascii(Path("C:/ProgramData/xhub")) is False
 
 
 def test_is_cookie_valid_no_file(tmp_path):
